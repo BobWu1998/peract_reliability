@@ -27,6 +27,8 @@ from agents.baselines import bc_lang, vit_bc_lang
 
 from helpers.custom_rlbench_env import CustomRLBenchEnv, CustomMultiTaskRLBenchEnv
 from helpers import utils
+from helpers.utils import create_obs_config
+import torch.distributed as dist
 
 from yarr.utils.rollout_generator import RolloutGenerator
 from torch.multiprocessing import Process, Manager
@@ -34,6 +36,8 @@ from torch.multiprocessing import Process, Manager
 import torch.multiprocessing
 torch.multiprocessing.set_sharing_strategy('file_system')
 
+from yarr.replay_buffer.wrappers.pytorch_replay_buffer import \
+    PyTorchReplayBuffer
 
 def eval_seed(train_cfg,
               eval_cfg,
@@ -42,7 +46,8 @@ def eval_seed(train_cfg,
               env_device,
               multi_task,
               seed,
-              env_config) -> None:
+              env_config,
+              obs_config) -> None:
 
     tasks = eval_cfg.rlbench.tasks
     rg = RolloutGenerator()
@@ -85,6 +90,52 @@ def eval_seed(train_cfg,
     cwd = os.getcwd()
     weightsdir = os.path.join(logdir, 'weights')
 
+    # ### adding support for expert demo extraction
+    # cfg = train_cfg # eval_cfg
+    # os.environ['MASTER_ADDR'] = cfg.ddp.master_addr
+    # os.environ['MASTER_PORT'] = cfg.ddp.master_port
+
+    # print('cfg.framework.num_workers', cfg.framework.num_workers)
+    # cfg.framework.logging_level = 20
+    # cfg.framework.num_workers = 0
+
+    # logging.info('adding support for expert demo')
+    # logging.info('env_config{}'.format(env_config))
+    # world_size = cfg.ddp.num_devices
+    # rank = world_size-1
+
+    # task = cfg.rlbench.tasks[0]
+    # tasks = cfg.rlbench.tasks
+
+    # task_folder = task if not multi_task else 'multi'
+    # logging.info('rank {}, world_size {}'.format(rank, world_size))
+    # dist.init_process_group("gloo",
+    #                     rank=rank,
+    #                     world_size=world_size)
+    # logging.info('adding support for expert demo ... 50%')
+    # replay_path = os.path.join(cfg.replay.path, task_folder, cfg.method.name, 'seed%d' % seed)
+    
+    # replay_buffer = peract_bc.launch_utils.create_replay(
+    # cfg.replay.batch_size, cfg.replay.timesteps,
+    # cfg.replay.prioritisation,
+    # cfg.replay.task_uniform,
+    # replay_path if cfg.replay.use_disk else None,
+    # cams, cfg.method.voxel_sizes,
+    # cfg.rlbench.camera_resolution)
+
+    # peract_bc.launch_utils.fill_multi_task_replay(
+    #     cfg, obs_config, rank,
+    #     replay_buffer, tasks, cfg.rlbench.demos,
+    #     cfg.method.demo_augmentation, cfg.method.demo_augmentation_every_n,
+    #     cams, cfg.rlbench.scene_bounds,
+    #     cfg.method.voxel_sizes, cfg.method.bounds_offset,
+    #     cfg.method.rotation_resolution, cfg.method.crop_augmentation,
+    #     keypoint_method=cfg.method.keypoint_method)
+    
+
+    # wrapped_replay = PyTorchReplayBuffer(replay_buffer, num_workers=cfg.framework.num_workers)
+    # ### end adding support for expert demo extraction
+    wrapped_replay = None
     env_runner = IndependentEnvRunner(
         train_env=None,
         agent=agent,
@@ -102,7 +153,8 @@ def eval_seed(train_cfg,
         env_device=env_device,
         rollout_generator=rg,
         num_eval_runs=len(tasks),
-        multi_task=multi_task)
+        multi_task=multi_task,
+        wrapped_replay=wrapped_replay)
 
     manager = Manager()
     save_load_lock = manager.Lock()
@@ -199,6 +251,7 @@ def eval_seed(train_cfg,
 
 @hydra.main(config_name='eval', config_path='conf')
 def main(eval_cfg: DictConfig) -> None:
+    
     logging.info('\n' + OmegaConf.to_yaml(eval_cfg))
 
     start_seed = eval_cfg.framework.start_seed
@@ -278,7 +331,9 @@ def main(eval_cfg: DictConfig) -> None:
               eval_cfg.rlbench.cameras,
               env_device,
               multi_task, start_seed,
-              env_config)
+              env_config,
+              obs_config)
 
 if __name__ == '__main__':
+    
     main()

@@ -254,6 +254,7 @@ def fill_replay(cfg: DictConfig,
             logging.info(f"Loading Demo({d_idx}) - found {len(episode_keypoints)} keypoints - {task}")
 
         for i in range(len(demo) - 1):
+            print('demo idx', i)
             if not demo_augmentation and i > 0:
                 break
             if i % demo_augmentation_every_n != 0:
@@ -292,7 +293,6 @@ def fill_multi_task_replay(cfg: DictConfig,
                            keypoint_method = 'heuristic'):
     manager = Manager()
     store = manager.dict()
-
     # create a MP dict for storing indicies
     # TODO(mohit): this shouldn't be initialized here
     del replay._task_idxs

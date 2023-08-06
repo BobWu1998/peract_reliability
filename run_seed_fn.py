@@ -22,7 +22,6 @@ from agents import peract_bc
 from agents import arm
 from agents.baselines import bc_lang, vit_bc_lang
 
-
 def run_seed(rank,
              cfg: DictConfig,
              obs_config: ObservationConfig,
@@ -39,7 +38,7 @@ def run_seed(rank,
 
     task_folder = task if not multi_task else 'multi'
     replay_path = os.path.join(cfg.replay.path, task_folder, cfg.method.name, 'seed%d' % seed)
-
+    print(replay_path)
     if cfg.method.name == 'ARM':
         raise NotImplementedError("ARM is not supported yet")
 

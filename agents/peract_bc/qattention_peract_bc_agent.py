@@ -607,6 +607,7 @@ class QAttentionPerActBCAgent(Agent):
         self._act_voxel_grid = vox_grid[0]
         self._act_max_coordinate = coords[0]
         self._act_qvalues = q_trans[0].detach()
+        # print('(coords, rot_grip_action, ignore_collisions_action)', (coords, rot_grip_action, ignore_collisions_action))
         return ActResult((coords, rot_grip_action, ignore_collisions_action),
                          observation_elements=observation_elements,
                          info=info)
