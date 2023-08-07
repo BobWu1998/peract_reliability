@@ -165,10 +165,11 @@ def _add_keypoints_to_replay(
     for k, keypoint in enumerate(episode_keypoints):
         obs_tp1 = demo[keypoint]
         obs_tm1 = demo[max(0, keypoint - 1)]
+        
         trans_indicies, rot_grip_indicies, ignore_collisions, action, attention_coordinates = _get_action(
             obs_tp1, obs_tm1, rlbench_scene_bounds, voxel_sizes, bounds_offset,
             rotation_resolution, crop_augmentation)
-
+        print(trans_indicies)
         terminal = (k == len(episode_keypoints) - 1)
         reward = float(terminal) * REWARD_SCALE if terminal else 0
 
@@ -249,17 +250,18 @@ def fill_replay(cfg: DictConfig,
 
         # extract keypoints (a.k.a keyframes)
         episode_keypoints = demo_loading_utils.keypoint_discovery(demo, method=keypoint_method)
-
+        print('keypoints', episode_keypoints)
         if rank == 0:
             logging.info(f"Loading Demo({d_idx}) - found {len(episode_keypoints)} keypoints - {task}")
-
+        
+        keypoint_added = False
         for i in range(len(demo) - 1):
-            print('demo idx', i)
+            if keypoint_added: continue
             if not demo_augmentation and i > 0:
                 break
             if i % demo_augmentation_every_n != 0:
                 continue
-
+            print('demo idx', i)
             obs = demo[i]
             desc = descs[0]
             # if our starting point is past one of the keypoints, then remove it
@@ -272,6 +274,7 @@ def fill_replay(cfg: DictConfig,
                 rlbench_scene_bounds, voxel_sizes, bounds_offset,
                 rotation_resolution, crop_augmentation, description=desc,
                 clip_model=clip_model, device=device)
+            keypoint_added = True
     logging.debug('Replay %s filled with demos.' % task)
 
 
@@ -291,6 +294,7 @@ def fill_multi_task_replay(cfg: DictConfig,
                            crop_augmentation: bool,
                            clip_model = None,
                            keypoint_method = 'heuristic'):
+    
     manager = Manager()
     store = manager.dict()
     # create a MP dict for storing indicies
