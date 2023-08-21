@@ -35,13 +35,22 @@ class QAttentionStackAgent(Agent):
     def update(self, step: int, replay_sample: dict) -> dict:
         priorities = 0
         total_losses = 0.
+        total_conf = []
+        total_true_pred = []
         for qa in self._qattention_agents:
-            update_dict = qa.update(step, replay_sample)
+            update_dict, update_conf = qa.update(step, replay_sample)
             replay_sample.update(update_dict)
             total_losses += update_dict['total_loss']
+            total_conf.extend(update_conf['total_conf'])
+            total_true_pred.extend(update_conf['true_pred'])
         return {
-            'total_losses': total_losses,
+            'total_losses': total_losses
+        }, \
+        {
+            'total_conf': total_conf,
+            'total_true_pred': total_true_pred
         }
+
 
     def act(self, step: int, observation: dict,
             deterministic=False) -> ActResult:

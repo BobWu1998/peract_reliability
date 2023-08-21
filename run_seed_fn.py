@@ -35,6 +35,7 @@ def run_seed(rank,
 
     task = cfg.rlbench.tasks[0]
     tasks = cfg.rlbench.tasks
+    print('task {}, tasks {}'.format(task, tasks))
 
     task_folder = task if not multi_task else 'multi'
     replay_path = os.path.join(cfg.replay.path, task_folder, cfg.method.name, 'seed%d' % seed)
@@ -136,6 +137,8 @@ def run_seed(rank,
     weightsdir = os.path.join(cwd, 'seed%d' % seed, 'weights')
     logdir = os.path.join(cwd, 'seed%d' % seed)
 
+    # weightsdir = '/home/bobwu/UQ/peract_headless/peract_reliability/ckpts/multi/PERACT_BC/seed0/weights'
+
     train_runner = OfflineTrainRunner(
         agent=agent,
         wrapped_replay_buffer=wrapped_replay,
@@ -152,7 +155,8 @@ def run_seed(rank,
         csv_logging=cfg.framework.csv_logging,
         load_existing_weights=cfg.framework.load_existing_weights,
         rank=rank,
-        world_size=world_size)
+        world_size=world_size,
+        task_name = task)
 
     train_runner.start()
 

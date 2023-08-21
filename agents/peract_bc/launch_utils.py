@@ -228,7 +228,8 @@ def fill_replay(cfg: DictConfig,
                 device = 'cpu',
                 keypoint_method = 'heuristic'):
     logging.getLogger().setLevel(cfg.framework.logging_level)
-
+    logging.info('loading from {}'.format(cfg.rlbench.demo_path))
+    print('loading from {}'.format(cfg.rlbench.demo_path))
     if clip_model is None:
         model, _ = load_clip('RN50', jit=False, device=device)
         clip_model = build_model(model.state_dict())

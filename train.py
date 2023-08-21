@@ -26,12 +26,13 @@ except RuntimeError:
 
 @hydra.main(config_name='config', config_path='conf')
 def main(cfg: DictConfig) -> None:
+    print('cfg', cfg)
     cfg_yaml = OmegaConf.to_yaml(cfg)
     logging.info('\n' + cfg_yaml)
 
     os.environ['MASTER_ADDR'] = cfg.ddp.master_addr
     os.environ['MASTER_PORT'] = cfg.ddp.master_port
-
+    logging.debug('main function launched')
     cfg.rlbench.cameras = cfg.rlbench.cameras \
         if isinstance(cfg.rlbench.cameras, ListConfig) else [cfg.rlbench.cameras]
     obs_config = create_obs_config(cfg.rlbench.cameras,
@@ -67,25 +68,38 @@ def main(cfg: DictConfig) -> None:
     if os.path.isdir(weights_folder) and len(os.listdir(weights_folder)) > 0:
         weights = os.listdir(weights_folder)
         latest_weight = sorted(map(int, weights))[-1]
-        if latest_weight >= cfg.framework.training_iterations:
-            logging.info('Agent was already trained for %d iterations. Exiting.' % latest_weight)
-            sys.exit(0)
+        # if latest_weight >= cfg.framework.training_iterations:
+        #     logging.info('Agent was already trained for %d iterations. Exiting.' % latest_weight)
+        #     sys.exit(0)
 
     # run train jobs with multiple seeds (sequentially)
     for seed in range(start_seed, start_seed + cfg.framework.seeds):
         logging.info('Starting seed %d.' % seed)
 
         world_size = cfg.ddp.num_devices
-        mp.spawn(run_seed_fn.run_seed,
-                 args=(cfg,
-                       obs_config,
-                       cfg.rlbench.cameras,
-                       multi_task,
-                       seed,
-                       world_size,),
-                 nprocs=world_size,
-                 join=True)
+        # mp.spawn(run_seed_fn.run_seed,
+        #          args=(cfg,
+        #                obs_config,
+        #                cfg.rlbench.cameras,
+        #                multi_task,
+        #                seed,
+        #                world_size,),
+        #          nprocs=world_size,
+        #          join=True)
+        run_seed_fn.run_seed(
+            0,  # This is the rank of the process, just use 0 for a single process
+            cfg,
+            obs_config,
+            cfg.rlbench.cameras,
+            multi_task,
+            seed,
+            world_size=1  # Setting world size to 1 as you only want a single process
+        )
+        print('run seed finishes')
+    
+
 
 
 if __name__ == '__main__':
     main()
+    sys.exit()

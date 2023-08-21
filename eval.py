@@ -39,6 +39,8 @@ torch.multiprocessing.set_sharing_strategy('file_system')
 from yarr.replay_buffer.wrappers.pytorch_replay_buffer import \
     PyTorchReplayBuffer
 
+import psutil
+
 def eval_seed(train_cfg,
               eval_cfg,
               logdir,
@@ -249,6 +251,30 @@ def eval_seed(train_cfg,
     gc.collect()
     torch.cuda.empty_cache()
 
+    def count_child_processes():
+        current_process = psutil.Process(os.getpid())
+        return len(current_process.children(recursive=True))
+
+    print('num_processes', count_child_processes())
+
+    def kill_child_processes():
+        current_process = psutil.Process(os.getpid())
+        children = current_process.children(recursive=True)  # Get all child processes
+        for child in children:
+            child.kill()
+            try:
+                child.wait(timeout=3)  # Wait up to 3 seconds for process to terminate
+            except psutil.TimeoutExpired:
+                print(f"Child process {child.pid} did not terminate in time.")
+            
+            if child.is_running():
+                print(f"Child process {child.pid} is still running.")
+            else:
+                print(f"Child process {child.pid} terminated successfully.")
+
+
+    kill_child_processes() ## !!! DIRTY FIX
+    print('num_processes', count_child_processes())
 
 @hydra.main(config_name='eval', config_path='conf')
 def main(eval_cfg: DictConfig) -> None:

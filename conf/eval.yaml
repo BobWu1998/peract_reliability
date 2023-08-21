@@ -1,26 +1,26 @@
-### adapted from config.yaml
-ddp:
-    master_addr: "localhost"
-    master_port: "29500"
-    num_devices: 1
+# ### adapted from config.yaml
+# ddp:
+#     master_addr: "localhost"
+#     master_port: "29500"
+#     num_devices: 1
 
-replay:
-    batch_size: 8
-    timesteps: 1
-    prioritisation: False
-    task_uniform: True # uniform sampling of tasks for multi-task buffers
-    use_disk: True
-    path: '/tmp/arm/replay' # only used when use_disk is True.
-    max_parallel_processes: 32
+# replay:
+#     batch_size: 8
+#     timesteps: 1
+#     prioritisation: False
+#     task_uniform: True # uniform sampling of tasks for multi-task buffers
+#     use_disk: True
+#     path: '/tmp/arm/replay' # only used when use_disk is True.
+#     max_parallel_processes: 2 #32
 
-### adapted from config.yaml
+# ### adapted from config.yaml
 
 method:
     name: "PERACT_BC"
-    voxel_sizes: [100] ### adapted from config.yaml
-    demo_augmentation: True ### adapted from config.yaml
-    demo_augmentation_every_n: 10 ### adapted from config.yaml
-    bounds_offset: [0.15] ### adapted from config.yaml
+    # voxel_sizes: [100] ### adapted from config.yaml
+    # demo_augmentation: True ### adapted from config.yaml
+    # demo_augmentation_every_n: 10 ### adapted from config.yaml
+    # bounds_offset: [0.15] ### adapted from config.yaml
 
 rlbench:
     task_name: "multi"
@@ -33,7 +33,7 @@ rlbench:
     include_lang_goal_in_obs: True
     time_in_state: True
     headless: True
-    demos: 100 ### adapted from config.yaml
+    # demos: 10 ### adapted from config.yaml
     # rlbench.demo_path=$PERACT_ROOT/data/train
 
 framework:
@@ -50,8 +50,8 @@ framework:
     eval_type: 'missing' # or 'best'
     eval_save_metrics: True
 
-    num_workers: 0 ### adapted from config.yaml
-    logging_level: 20 # https://docs.python.org/3/library/logging.html#levels ### adapted from config.yaml
+    # num_workers: 0 ### adapted from config.yaml
+    # logging_level: 20 # https://docs.python.org/3/library/logging.html#levels ### adapted from config.yaml
 
 cinematic_recorder:
     enabled: False

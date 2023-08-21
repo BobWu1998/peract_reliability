@@ -23,6 +23,7 @@ import transformers
 from helpers.optim.lamb import Lamb
 
 from torch.nn.parallel import DistributedDataParallel as DDP
+import pdb
 
 NAME = 'QAttentionAgent'
 
@@ -422,7 +423,7 @@ class QAttentionPerActBCAgent(Agent):
         coords, \
         rot_and_grip_indicies, \
         ignore_collision_indicies = self._q.choose_highest_action(q_trans, q_rot_grip, q_collision)
-
+        
         q_trans_loss, q_rot_loss, q_grip_loss, q_collision_loss = 0., 0., 0., 0.
 
         # translation one-hot
@@ -478,10 +479,41 @@ class QAttentionPerActBCAgent(Agent):
                           (q_grip_loss * self._grip_loss_weight) + \
                           (q_collision_loss * self._collision_loss_weight)
         total_loss = combined_losses.mean()
+        # print('gt_rot_grip {}, ')
+        # print('rot_and_grip_indicies {}, action_rot_grip {}'.format(rot_and_grip_indicies, action_rot_grip))
+        # print('ignore_collision_indicies {}, action_ignore_collisions {}'.format(ignore_collision_indicies, action_ignore_collisions))
+        # print('coords {}, action_trans {}, trans_loss {}, total_loss {}'.format(coords, action_trans, q_trans_loss.mean(), total_loss))
+        # pdb.set_trace()
+        # _q_trans = self._softmax_q_trans(q_trans)
+        # trans_confidence = _q_trans.max().detach()
 
-        self._optimizer.zero_grad()
-        total_loss.backward()
-        self._optimizer.step()
+        # calculate the total confidence
+        # pdb.set_trace()
+        trans_conf = self._softmax_q_trans(q_trans).max().detach().cpu().item()
+        rot_grip_conf = self._softmax_q_rot_grip(q_rot_grip)
+        rot_conf = torch.stack(torch.split(rot_grip_conf[:, :-2],int(360 // self._rotation_resolution),dim=1), dim=1)
+        rot_conf = torch.prod(rot_conf.detach().cpu()[0].max(dim=1)[0]).item()
+
+        grip_conf = rot_grip_conf[:, -2:].detach().cpu().max().item()
+        collision_conf =  self._softmax_ignore_collision(q_collision).max().detach().cpu().item()
+        total_conf = trans_conf * rot_conf * grip_conf * collision_conf
+
+        # evaluate prediction correctness
+        true_trans = all(action_trans[0] == coords[0])
+        true_rot_and_grip = all(rot_and_grip_indicies[0]==gt_rot_grip)
+        true_ignore_collisions = all(gt_ignore_collisions == ignore_collision_indicies[0])
+
+        logging.info('true_trans: {}\n true_rot_and_grip: {}\n true_ignore_collisions: {}\n'.format(true_trans, true_rot_and_grip, true_ignore_collisions))
+
+        if all([true_trans, true_rot_and_grip, true_ignore_collisions]):
+            true_pred = 1
+        else:
+            true_pred = 0
+
+        ### TODO: temporary hack to disable update
+        # self._optimizer.zero_grad()
+        # total_loss.backward()
+        # self._optimizer.step()
 
         self._summaries = {
             'losses/total_loss': total_loss,
@@ -490,7 +522,6 @@ class QAttentionPerActBCAgent(Agent):
             'losses/grip_loss': q_grip_loss.mean() if with_rot_and_grip else 0.,
             'losses/collision_loss': q_collision_loss.mean() if with_rot_and_grip else 0.,
         }
-
         if self._lr_scheduler:
             self._scheduler.step()
             self._summaries['learning_rate'] = self._scheduler.get_last_lr()[0]
@@ -512,11 +543,15 @@ class QAttentionPerActBCAgent(Agent):
             prev_layer_bounds = [self._coordinate_bounds.repeat(bs, 1)]
         else:
             prev_layer_bounds = prev_layer_bounds + [bounds]
-
+        print('trans_confidence {}, true_pred {}'.format(total_conf, true_pred))
         return {
             'total_loss': total_loss,
             'prev_layer_voxel_grid': prev_layer_voxel_grid,
-            'prev_layer_bounds': prev_layer_bounds,
+            'prev_layer_bounds': prev_layer_bounds
+        }, \
+        {
+            'total_conf': [total_conf],
+            'true_pred': [true_pred]
         }
 
     def act(self, step: int, observation: dict,
@@ -571,6 +606,22 @@ class QAttentionPerActBCAgent(Agent):
         q_ignore_collisions = self._softmax_ignore_collision(q_ignore_collisions) \
             if q_ignore_collisions is not None else q_ignore_collisions
 
+        # trans_conf = q_trans.max().detach().cpu().item()
+        # rot_grip_conf = q_rot_grip.max().detach().cpu().item()
+        # collision_conf =  q_ignore_collisions.max().detach().cpu().item()
+        # total_conf = trans_conf * rot_grip_conf * collision_conf
+
+        # calculate the confidence score
+        trans_conf = q_trans.max().detach().cpu().item()
+
+        rot_grip_conf = q_rot_grip
+        rot_conf = torch.stack(torch.split(rot_grip_conf[:, :-2],int(360 // self._rotation_resolution),dim=1), dim=1)
+        rot_conf = torch.prod(rot_conf.detach().cpu()[0].max(dim=1)[0]).item()
+        grip_conf = rot_grip_conf[:, -2:].detach().cpu().max().item()
+        
+        collision_conf =  q_ignore_collisions.max().detach().cpu().item()
+        total_conf = trans_conf * rot_conf * grip_conf * collision_conf
+
         # argmax Q predictions
         coords, \
         rot_and_grip_indicies, \
@@ -602,7 +653,8 @@ class QAttentionPerActBCAgent(Agent):
         info = {
             'voxel_grid_depth%d' % self._layer: vox_grid,
             'q_depth%d' % self._layer: q_trans,
-            'voxel_idx_depth%d' % self._layer: coords
+            'voxel_idx_depth%d' % self._layer: coords,
+            'total_conf': total_conf
         }
         self._act_voxel_grid = vox_grid[0]
         self._act_max_coordinate = coords[0]
@@ -610,7 +662,8 @@ class QAttentionPerActBCAgent(Agent):
         print('(coords, rot_grip_action, ignore_collisions_action)', (coords, rot_grip_action, ignore_collisions_action))
         return ActResult((coords, rot_grip_action, ignore_collisions_action),
                          observation_elements=observation_elements,
-                         info=info)
+                         info=info) 
+                
 
     def update_summaries(self) -> List[Summary]:
         summaries = [

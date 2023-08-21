@@ -1,13 +1,13 @@
 ddp:
     master_addr: "localhost"
-    master_port: "29500"
+    master_port: "29600" #"29501" #"29500"
     num_devices: 1
 
 rlbench:
     task_name: "multi"
-    tasks: [open_drawer,slide_block_to_color_target]
-    demos: 100
-    demo_path: /my/demo/path
+    tasks: [open_drawer] #,slide_block_to_color_target]
+    demos: 10 #100
+    demo_path: $PERACT_ROOT/data/val  #/my/demo/path #/home/bobwu/UQ/peract_headless/peract_reliability/data/val #
     episode_length: 25
     cameras: [front,left_shoulder,right_shoulder,wrist]
     camera_resolution: [128, 128]
@@ -38,7 +38,7 @@ framework:
     logging_level: 20 # https://docs.python.org/3/library/logging.html#levels
     seeds: 1
     start_seed: 0
-    load_existing_weights: False
+    load_existing_weights: True #FIXED #False
     num_weights_to_keep: 60 # older checkpoints will be deleted chronologically
     num_workers: 0
     record_every_n: 5
