@@ -37,18 +37,21 @@ class QAttentionStackAgent(Agent):
         total_losses = 0.
         total_conf = []
         total_true_pred = []
+        total_temp_scaler_loss = 0.
         for qa in self._qattention_agents:
             update_dict, update_conf = qa.update(step, replay_sample)
             replay_sample.update(update_dict)
             total_losses += update_dict['total_loss']
             total_conf.extend(update_conf['total_conf'])
             total_true_pred.extend(update_conf['true_pred'])
+            total_temp_scaler_loss += update_conf['temp_scaler_loss']
         return {
             'total_losses': total_losses
         }, \
         {
             'total_conf': total_conf,
-            'total_true_pred': total_true_pred
+            'total_true_pred': total_true_pred,
+            'total_temp_scaler_loss': total_temp_scaler_loss
         }
 
 
@@ -116,7 +119,9 @@ class QAttentionStackAgent(Agent):
     def load_weights(self, savedir: str):
         for qa in self._qattention_agents:
             qa.load_weights(savedir)
+            qa.temperature_scaler.load_temperature()
 
     def save_weights(self, savedir: str):
         for qa in self._qattention_agents:
             qa.save_weights(savedir)
+            qa.temperature_scaler.save_temperature()

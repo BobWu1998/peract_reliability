@@ -7,6 +7,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch import optim
 from torchvision import transforms
 from pytorch3d import transforms as torch3d_tf
 from yarr.agents.agent import Agent, ActResult, ScalarSummary, \
@@ -24,6 +25,9 @@ from helpers.optim.lamb import Lamb
 
 from torch.nn.parallel import DistributedDataParallel as DDP
 import pdb
+
+from uncertainty_module.temperature_scaling import TemperatureScaler
+
 
 NAME = 'QAttentionAgent'
 
@@ -173,12 +177,28 @@ class QAttentionPerActBCAgent(Agent):
         self._cross_entropy_loss = nn.CrossEntropyLoss(reduction='none')
         self._name = NAME + '_layer' + str(self._layer)
 
+        self.lowest_conf = 1.
+        
+        
+
     def build(self, training: bool, device: torch.device = None):
         self._training = training
         self._device = device
 
         if device is None:
             device = torch.device('cpu')
+            
+        self.temperature_scaler = TemperatureScaler(self._device, 
+                                                    self._rotation_resolution, 
+                                                    self._batch_size, 
+                                                    self._num_rotation_classes, 
+                                                    self._voxel_size,
+                                                    trans_loss_weight = self._trans_loss_weight, 
+                                                    rot_loss_weight = self._rot_loss_weight,
+                                                    grip_loss_weight = self._grip_loss_weight,
+                                                    collision_loss_weight = self._collision_loss_weight,
+                                                    hard_temp=True
+                                                    )
 
         self._voxelizer = VoxelGrid(
             coord_bounds=self._coordinate_bounds,
@@ -418,6 +438,13 @@ class QAttentionPerActBCAgent(Agent):
                              bounds,
                              prev_layer_bounds,
                              prev_layer_voxel_grid)
+        
+        # if not self._hard_temp == None:
+        #     q_trans /= self._hard_temp
+        #     q_rot_grip /= self._hard_temp
+        #     q_collision /= self._hard_temp
+        if self.temperature_scaler.hard_temp:
+            q_trans, q_rot_grip, q_collision = self.temperature_scaler.scale_logits([q_trans, q_rot_grip, q_collision])
 
         # argmax to choose best action
         coords, \
@@ -487,6 +514,11 @@ class QAttentionPerActBCAgent(Agent):
         # _q_trans = self._softmax_q_trans(q_trans)
         # trans_confidence = _q_trans.max().detach()
 
+        # calculate loss for temp_scaler_loss
+        logits = [q_trans, q_rot_grip, q_collision]
+        labels = [action_trans, action_rot_grip, action_ignore_collisions]
+        prev_temp_scaler_loss = self.temperature_scaler.compute_loss(logits, labels)
+        
         # calculate the total confidence
         # pdb.set_trace()
         trans_conf = self._softmax_q_trans(q_trans).max().detach().cpu().item()
@@ -497,6 +529,8 @@ class QAttentionPerActBCAgent(Agent):
         grip_conf = rot_grip_conf[:, -2:].detach().cpu().max().item()
         collision_conf =  self._softmax_ignore_collision(q_collision).max().detach().cpu().item()
         total_conf = trans_conf * rot_conf * grip_conf * collision_conf
+        
+        self.lowest_conf = min(total_conf, self.lowest_conf)
 
         # evaluate prediction correctness
         true_trans = all(action_trans[0] == coords[0])
@@ -504,7 +538,7 @@ class QAttentionPerActBCAgent(Agent):
         true_ignore_collisions = all(gt_ignore_collisions == ignore_collision_indicies[0])
 
         logging.info('true_trans: {}\n true_rot_and_grip: {}\n true_ignore_collisions: {}\n'.format(true_trans, true_rot_and_grip, true_ignore_collisions))
-
+        # logging.info('temperature scalar loss: {}\n'.format(temp_scaler_loss))
         if all([true_trans, true_rot_and_grip, true_ignore_collisions]):
             true_pred = 1
         else:
@@ -514,6 +548,14 @@ class QAttentionPerActBCAgent(Agent):
         # self._optimizer.zero_grad()
         # total_loss.backward()
         # self._optimizer.step()
+        
+        # udpate the temperature scaler
+        temp_scaler_loss = self.temperature_scaler.compute_loss(logits, labels)
+        self.temperature_scaler.optimizer.zero_grad()
+        temp_scaler_loss.backward()
+        self.temperature_scaler.optimizer.step()
+        
+        after_temp_scaler_loss = self.temperature_scaler.compute_loss(self.temperature_scaler.scale_logits(logits), labels).item()
 
         self._summaries = {
             'losses/total_loss': total_loss,
@@ -544,6 +586,9 @@ class QAttentionPerActBCAgent(Agent):
         else:
             prev_layer_bounds = prev_layer_bounds + [bounds]
         print('trans_confidence {}, true_pred {}'.format(total_conf, true_pred))
+        print('Temperature Loss Before: %.3f, After: %.3f' % (prev_temp_scaler_loss, after_temp_scaler_loss))
+        print('Current temperature is {}'.format(self.temperature_scaler.temperature))
+        print('lowest conf {}'.format(self.lowest_conf))
         return {
             'total_loss': total_loss,
             'prev_layer_voxel_grid': prev_layer_voxel_grid,
@@ -551,7 +596,8 @@ class QAttentionPerActBCAgent(Agent):
         }, \
         {
             'total_conf': [total_conf],
-            'true_pred': [true_pred]
+            'true_pred': [true_pred],
+            'temp_scaler_loss': after_temp_scaler_loss
         }
 
     def act(self, step: int, observation: dict,
@@ -662,8 +708,7 @@ class QAttentionPerActBCAgent(Agent):
         print('(coords, rot_grip_action, ignore_collisions_action)', (coords, rot_grip_action, ignore_collisions_action))
         return ActResult((coords, rot_grip_action, ignore_collisions_action),
                          observation_elements=observation_elements,
-                         info=info) 
-                
+                         info=info)          
 
     def update_summaries(self) -> List[Summary]:
         summaries = [
@@ -703,8 +748,10 @@ class QAttentionPerActBCAgent(Agent):
                              self._act_max_coordinate.cpu().numpy())))]
 
     def load_weights(self, savedir: str):
-        device = self._device if not self._training else torch.device('cuda:%d' % self._device)
+        # device = self._device if not self._training else torch.device('cuda:%d' % self._device)
+        device = torch.device('cuda:%d' % self._device)
         weight_file = os.path.join(savedir, '%s.pt' % self._name)
+        print('self._training {}, weight_file {}, device'.format(self._training, weight_file, device))
         state_dict = torch.load(weight_file, map_location=device)
 
         # load only keys that are in the current model
