@@ -5,7 +5,7 @@ ddp:
 
 rlbench:
     task_name: "multi"
-    tasks: [open_drawer] #,slide_block_to_color_target]
+    tasks: [put_money_in_safe] #[open_drawer] #,slide_block_to_color_target]
     demos: 10 #100
     demo_path: $PERACT_ROOT/data/val  #/my/demo/path #/home/bobwu/UQ/peract_headless/peract_reliability/data/val #
     episode_length: 25
@@ -42,6 +42,22 @@ framework:
     num_weights_to_keep: 60 # older checkpoints will be deleted chronologically
     num_workers: 0
     record_every_n: 5
+
+temperature:
+    temperature_training: False
+    temperature_use_hard_temp: True #False
+    temperature_hard_temp: 3 #3 #1.5 #3 
+    # 3 for put_money_in_safe
+    # 5.5 for push buttons
+    # 1.5 for open_drawer
+
+risk: # use risk averse action
+    alpha1: 1
+    alpha2: 1
+    alpha3: 1000
+    alpha4: 1000
+    tau: 10
+    conf_thresh: 1e-5
 
 defaults:
     - method: C2FARM

@@ -24,7 +24,7 @@ method:
 
 rlbench:
     task_name: "multi"
-    tasks: [open_drawer,slide_block_to_color_target]
+    tasks: [put_money_in_safe] #[open_drawer,slide_block_to_color_target]
     demo_path: $PERACT_ROOT/data/val # /my/demo/path
     episode_length: 25
     cameras: [front,left_shoulder,right_shoulder,wrist]
@@ -53,8 +53,21 @@ framework:
     # num_workers: 0 ### adapted from config.yaml
     # logging_level: 20 # https://docs.python.org/3/library/logging.html#levels ### adapted from config.yaml
 
+temperature:
+    temperature_training: False
+    temperature_use_hard_temp: False
+    #temperature_hard_temp: # 1.5 for open_drawer
+
+risk: # use risk averse action
+    alpha1: 1
+    alpha2: 1
+    alpha3: 1000
+    alpha4: 1000
+    tau: 10
+    conf_thresh: 1e-5
+
 cinematic_recorder:
-    enabled: False
+    enabled: True
     camera_resolution: [1280, 720]
     fps: 30
     rotate_speed: 0.005

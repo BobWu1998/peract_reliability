@@ -41,6 +41,10 @@ from yarr.replay_buffer.wrappers.pytorch_replay_buffer import \
 
 import psutil
 
+from uncertainty_module.temperature_scaling import TemperatureScaler
+from uncertainty_module.action_selection import ActionSelection
+
+
 def eval_seed(train_cfg,
               eval_cfg,
               logdir,
@@ -139,6 +143,38 @@ def eval_seed(train_cfg,
     wrapped_replay = PyTorchReplayBuffer(replay_buffer, num_workers=cfg.framework.num_workers)
     ### end adding support for expert demo extraction
     # wrapped_replay = None
+    cfg = train_cfg
+    temperature_scaler = TemperatureScaler(
+        device = rank,
+        rotation_resolution = cfg.method.rotation_resolution,
+        batch_size = cfg.replay.batch_size,
+        num_rotation_classes = int(360. // cfg.method.rotation_resolution),
+        voxel_size = cfg.method.voxel_sizes[0],
+        trans_loss_weight=cfg.method.trans_loss_weight,
+        rot_loss_weight=cfg.method.rot_loss_weight,
+        grip_loss_weight=cfg.method.grip_loss_weight,
+        collision_loss_weight=cfg.method.collision_loss_weight,
+        training=cfg.temperature.temperature_training,
+        use_hard_temp = cfg.temperature.temperature_use_hard_temp,
+        hard_temp = cfg.temperature.temperature_hard_temp)
+    
+    action_selection = ActionSelection(
+            device = rank, 
+            rotation_resolution = cfg.method.rotation_resolution,
+            batch_size = cfg.replay.batch_size, 
+            num_rotation_classes = int(360. // cfg.method.rotation_resolution), 
+            voxel_size = cfg.method.voxel_sizes[0],
+            temperature = cfg.temperature.temperature_hard_temp,
+            alpha1 = cfg.risk.alpha1,
+            alpha2 = cfg.risk.alpha2,
+            alpha3 = cfg.risk.alpha3,
+            alpha4 = cfg.risk.alpha4,
+            tau = cfg.risk.tau,
+            conf_thresh = cfg.risk.conf_thresh)
+
+    # agent.build(training=False, device=rank, temperature_scaler=temperature_scaler, action_selection=action_selection)
+    # agent.build(training=False, device=None, temperature_scaler=temperature_scaler, action_selection=action_selection)
+    
     env_runner = IndependentEnvRunner(
         train_env=None,
         agent=agent,
@@ -157,7 +193,9 @@ def eval_seed(train_cfg,
         rollout_generator=rg,
         num_eval_runs=len(tasks),
         multi_task=multi_task,
-        wrapped_replay=wrapped_replay)
+        wrapped_replay=wrapped_replay,
+        temperature_scaler=temperature_scaler,
+        action_selection=action_selection)
 
     manager = Manager()
     save_load_lock = manager.Lock()
@@ -233,18 +271,25 @@ def eval_seed(train_cfg,
         processes = []
         for e_idx, weight_idx in enumerate(split):
             weight = weight_folders[weight_idx]
-            p = Process(target=env_runner.start,
-                        args=(weight,
+            env_runner.start(weight,
                               save_load_lock,
                               writer_lock,
                               env_config,
                               e_idx % torch.cuda.device_count(),
                               eval_cfg.framework.eval_save_metrics,
-                              eval_cfg.cinematic_recorder))
-            p.start()
-            processes.append(p)
-        for p in processes:
-            p.join()
+                              eval_cfg.cinematic_recorder)
+        #     p = Process(target=env_runner.start,
+        #                 args=(weight,
+        #                       save_load_lock,
+        #                       writer_lock,
+        #                       env_config,
+        #                       e_idx % torch.cuda.device_count(),
+        #                       eval_cfg.framework.eval_save_metrics,
+        #                       eval_cfg.cinematic_recorder))
+        #     p.start()
+        #     processes.append(p)
+        # for p in processes:
+        #     p.join()
 
     del env_runner
     del agent

@@ -14,8 +14,8 @@ class PreprocessAgent(Agent):
         self._pose_agent = pose_agent
         self._norm_rgb = norm_rgb
 
-    def build(self, training: bool, device: torch.device = None):
-        self._pose_agent.build(training, device)
+    def build(self, training: bool, device: torch.device = None, temperature_scaler = None, action_selection = None):
+        self._pose_agent.build(training, device, temperature_scaler, action_selection)
 
     def _norm_rgb_(self, x):
         return (x.float() / 255.0) * 2.0 - 1.0

@@ -22,6 +22,9 @@ from agents import peract_bc
 from agents import arm
 from agents.baselines import bc_lang, vit_bc_lang
 
+from uncertainty_module.temperature_scaling import TemperatureScaler
+from uncertainty_module.action_selection import ActionSelection
+
 def run_seed(rank,
              cfg: DictConfig,
              obs_config: ObservationConfig,
@@ -138,6 +141,33 @@ def run_seed(rank,
     logdir = os.path.join(cwd, 'seed%d' % seed)
 
     # weightsdir = '/home/bobwu/UQ/peract_headless/peract_reliability/ckpts/multi/PERACT_BC/seed0/weights'
+    temperature_scaler = TemperatureScaler(
+        device = rank,
+        rotation_resolution = cfg.method.rotation_resolution,
+        batch_size = cfg.replay.batch_size,
+        num_rotation_classes = int(360. // cfg.method.rotation_resolution),
+        voxel_size = cfg.method.voxel_sizes[0],
+        trans_loss_weight=cfg.method.trans_loss_weight,
+        rot_loss_weight=cfg.method.rot_loss_weight,
+        grip_loss_weight=cfg.method.grip_loss_weight,
+        collision_loss_weight=cfg.method.collision_loss_weight,
+        training=cfg.temperature.temperature_training,
+        use_hard_temp = cfg.temperature.temperature_use_hard_temp,
+        hard_temp = cfg.temperature.temperature_hard_temp)
+    
+    action_selection = ActionSelection(
+            device = rank, 
+            rotation_resolution = cfg.method.rotation_resolution,
+            batch_size = cfg.replay.batch_size, 
+            num_rotation_classes = int(360. // cfg.method.rotation_resolution), 
+            voxel_size = cfg.method.voxel_sizes[0],
+            temperature = cfg.temperature.temperature_hard_temp,
+            alpha1 = cfg.risk.alpha1,
+            alpha2 = cfg.risk.alpha2,
+            alpha3 = cfg.risk.alpha3,
+            alpha4 = cfg.risk.alpha4,
+            tau = cfg.risk.tau,
+            conf_thresh = cfg.risk.conf_thresh)
 
     train_runner = OfflineTrainRunner(
         agent=agent,
@@ -156,7 +186,9 @@ def run_seed(rank,
         load_existing_weights=cfg.framework.load_existing_weights,
         rank=rank,
         world_size=world_size,
-        task_name = task)
+        task_name = task,
+        temperature_scaler = temperature_scaler,
+        action_selection = action_selection)
 
     train_runner.start()
 

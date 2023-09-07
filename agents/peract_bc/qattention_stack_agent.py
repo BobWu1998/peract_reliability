@@ -25,12 +25,12 @@ class QAttentionStackAgent(Agent):
         self._camera_names = camera_names
         self._rotation_prediction_depth = rotation_prediction_depth
 
-    def build(self, training: bool, device=None) -> None:
+    def build(self, training: bool, device=None, temperature_scaler = None, action_selection = None) -> None:
         self._device = device
         if self._device is None:
             self._device = torch.device('cpu')
         for qa in self._qattention_agents:
-            qa.build(training, device)
+            qa.build(training, device, temperature_scaler, action_selection)
 
     def update(self, step: int, replay_sample: dict) -> dict:
         priorities = 0
