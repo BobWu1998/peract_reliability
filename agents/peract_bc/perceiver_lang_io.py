@@ -199,7 +199,9 @@ class PerceiverVoxelLangEncoder(nn.Module):
 
         # CLIP language feature dimensions
         lang_feat_dim, lang_emb_dim, lang_max_seq_len = 1024, 512, 77
-
+        
+        # torch.manual_seed(0)
+        # torch.cuda.manual_seed(0)
         # learnable positional encoding
         if self.pos_encoding_with_lang:
             self.pos_encoding = nn.Parameter(torch.randn(1,

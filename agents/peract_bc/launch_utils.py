@@ -113,6 +113,7 @@ def _get_action(
         bounds_offset: List[float],
         rotation_resolution: int,
         crop_augmentation: bool):
+
     quat = utils.normalize_quaternion(obs_tp1.gripper_pose[3:])
     if quat[-1] < 0:
         quat = -quat
@@ -127,6 +128,7 @@ def _get_action(
         if depth > 0:
             if crop_augmentation:
                 shift = bounds_offset[depth - 1] * 0.75
+                # np.random.seed(0)
                 attention_coordinate += np.random.uniform(-shift, shift, size=(3,))
             bounds = np.concatenate([attention_coordinate - bounds_offset[depth - 1],
                                      attention_coordinate + bounds_offset[depth - 1]])

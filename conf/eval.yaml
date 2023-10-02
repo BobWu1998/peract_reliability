@@ -24,7 +24,7 @@ method:
 
 rlbench:
     task_name: "multi"
-    tasks: [put_money_in_safe] #[open_drawer,slide_block_to_color_target]
+    tasks: [push_buttons] #[put_money_in_safe] #[open_drawer,slide_block_to_color_target]
     demo_path: $PERACT_ROOT/data/val # /my/demo/path
     episode_length: 25
     cameras: [front,left_shoulder,right_shoulder,wrist]
@@ -53,21 +53,37 @@ framework:
     # num_workers: 0 ### adapted from config.yaml
     # logging_level: 20 # https://docs.python.org/3/library/logging.html#levels ### adapted from config.yaml
 
+# temperature:
+#     temperature_training: False
+#     temperature_use_hard_temp: True # False
+#     temperature_hard_temp: 5.5 # 1.5 for open_drawer
+
+# risk: # use risk averse action
+#     alpha1: 1
+#     alpha2: 1
+#     alpha3: 1000
+#     alpha4: 1000
+#     tau: 10
+#     conf_thresh: 1e-5
 temperature:
-    temperature_training: False
-    temperature_use_hard_temp: False
-    #temperature_hard_temp: # 1.5 for open_drawer
-
-risk: # use risk averse action
-    alpha1: 1
-    alpha2: 1
-    alpha3: 1000
-    alpha4: 1000
-    tau: 10
-    conf_thresh: 1e-5
-
+  temperature_training: false
+  temperature_use_hard_temp: true
+  temperature_hard_temp: 3 #for wine and money
+  load_indiv_temp: False
+risk:
+  alpha1: 1
+  alpha2: 1
+  alpha3: 1000
+  alpha4: 1000
+  tau: 3
+  trans_conf_thresh: 1.0e-6
+  rot_conf_thresh: 0.014 #1/72
+  search_size: 20
+  search_step: 2
+  log_dir: /home/bobwu/shared/safe_action_new/ # /home/bobwu/shared/safe_action_conf100_set/
+  enabled: False
 cinematic_recorder:
-    enabled: True
+    enabled: False #True
     camera_resolution: [1280, 720]
     fps: 30
     rotate_speed: 0.005

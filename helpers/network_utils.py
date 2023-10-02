@@ -573,7 +573,8 @@ class ViT(nn.Module):
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
             nn.Linear(patch_dim, dim),
         )
-
+        # torch.manual_seed(0)
+        # torch.cuda.manual_seed(0)
         self.pos_embedding = nn.Parameter(torch.randn(1, self.num_patches + 1, dim))
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
         self.dropout = nn.Dropout(emb_dropout)

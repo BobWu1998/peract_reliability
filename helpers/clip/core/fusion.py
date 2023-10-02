@@ -258,6 +258,8 @@ class CrossModalAttention2d(nn.Module):
         self.lang_max_tokens = lang_max_tokens
         self.num_heads = num_heads
         self.lang_proj = nn.Linear(self.lang_dim, embed_dim)
+        # torch.manual_seed(0)
+        # torch.cuda.manual_seed(0)
         self.vision_positional_embedding = nn.Parameter(torch.randn(spacial_dim ** 2, embed_dim) / embed_dim ** 0.5)
         self.lang_positional_embedding = nn.Parameter(torch.randn(lang_max_tokens, embed_dim) / embed_dim ** 0.5)
         self.k_proj = nn.Linear(embed_dim, embed_dim)

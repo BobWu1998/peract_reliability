@@ -78,6 +78,9 @@ class Actor(nn.Module):
         log_std = torch.clamp(log_std, LOG_STD_MIN, LOG_STD_MAX)
 
         std = log_std.exp()
+        
+        # torch.manual_seed(0)
+        # torch.cuda.manual_seed(0)
         noise = torch.randn_like(mu)
         pi = mu + noise * std
         log_pi = self._gaussian_logprob(noise, log_std)
@@ -246,6 +249,8 @@ class NextBestPoseAgent(Agent):
                                '%s_pixel_coord_tp1' % self._camera_name][:, -1]
 
         if self._crop_augmentation:
+            # torch.manual_seed(0)
+            # torch.cuda.manual_seed(0)
             shifted = ((torch.rand_like(pixel_action.float())
                         * self._crop_shape_t).int() - self._crop_shape_t // 2
                        ) * replay_sample['demo'].int().unsqueeze(1)
@@ -316,6 +321,9 @@ class NextBestPoseAgent(Agent):
         pixel_action = replay_sample['%s_pixel_coord' % self._camera_name][:, -1]
 
         if self._crop_augmentation:
+            # torch.manual_seed(0)
+            # torch.cuda.manual_seed(0)
+
             shifted = ((torch.rand_like(pixel_action.float())
                         * self._crop_shape_t).int() - self._crop_shape_t // 2
                        ) * replay_sample['demo'].int().unsqueeze(1)

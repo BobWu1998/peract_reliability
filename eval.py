@@ -96,54 +96,67 @@ def eval_seed(train_cfg,
 
     cwd = os.getcwd()
     weightsdir = os.path.join(logdir, 'weights')
+    
 
-    ### adding support for expert demo extraction
-    cfg = train_cfg # eval_cfg
-    os.environ['MASTER_ADDR'] = cfg.ddp.master_addr
-    os.environ['MASTER_PORT'] = cfg.ddp.master_port
+    # ### adding support for expert demo extraction
+    # cfg = train_cfg # eval_cfg
+    # os.environ['MASTER_ADDR'] = cfg.ddp.master_addr
+    # os.environ['MASTER_PORT'] = cfg.ddp.master_port
 
-    print('cfg.framework.num_workers', cfg.framework.num_workers)
-    cfg.framework.logging_level = 20
-    cfg.framework.num_workers = 0
+    # print('cfg.framework.num_workers', cfg.framework.num_workers)
+    # cfg.framework.logging_level = 20
+    # cfg.framework.num_workers = 0
 
-    logging.info('adding support for expert demo')
-    logging.info('env_config{}'.format(env_config))
+    # logging.info('adding support for expert demo')
+    # logging.info('env_config{}'.format(env_config))
+    # world_size = cfg.ddp.num_devices
+    # rank = world_size-1
+
+    # task = cfg.rlbench.tasks[0]
+    # tasks = cfg.rlbench.tasks
+
+    # task_folder = task if not multi_task else 'multi'
+    # logging.info('rank {}, world_size {}'.format(rank, world_size))
+    # dist.init_process_group("gloo",
+    #                     rank=rank,
+    #                     world_size=world_size)
+    # logging.info('adding support for expert demo ... 50%')
+    # replay_path = os.path.join(cfg.replay.path, task_folder, cfg.method.name, 'seed%d' % seed)
+    
+    # replay_buffer = peract_bc.launch_utils.create_replay(
+    # cfg.replay.batch_size, cfg.replay.timesteps,
+    # cfg.replay.prioritisation,
+    # cfg.replay.task_uniform,
+    # replay_path if cfg.replay.use_disk else None,
+    # cams, cfg.method.voxel_sizes,
+    # cfg.rlbench.camera_resolution)
+
+    # peract_bc.launch_utils.fill_multi_task_replay(
+    #     cfg, obs_config, rank,
+    #     replay_buffer, tasks, cfg.rlbench.demos,
+    #     cfg.method.demo_augmentation, cfg.method.demo_augmentation_every_n,
+    #     cams, cfg.rlbench.scene_bounds,
+    #     cfg.method.voxel_sizes, cfg.method.bounds_offset,
+    #     cfg.method.rotation_resolution, cfg.method.crop_augmentation,
+    #     keypoint_method=cfg.method.keypoint_method)
+    # agent = peract_bc.launch_utils.create_agent(train_cfg)
+    # logging.info('agents layer {}'.format(agent))
+    # wrapped_replay = PyTorchReplayBuffer(replay_buffer, num_workers=cfg.framework.num_workers)
+    # ### end adding support for expert demo extraction
+    wrapped_replay = None
+
+    cfg = train_cfg
     world_size = cfg.ddp.num_devices
     rank = world_size-1
-
-    task = cfg.rlbench.tasks[0]
-    tasks = cfg.rlbench.tasks
-
-    task_folder = task if not multi_task else 'multi'
-    logging.info('rank {}, world_size {}'.format(rank, world_size))
-    dist.init_process_group("gloo",
-                        rank=rank,
-                        world_size=world_size)
-    logging.info('adding support for expert demo ... 50%')
-    replay_path = os.path.join(cfg.replay.path, task_folder, cfg.method.name, 'seed%d' % seed)
+    # print('cfg.temperature.temperature_hard_temp',eval_cfg.temperature.temperature_hard_temp)
     
-    replay_buffer = peract_bc.launch_utils.create_replay(
-    cfg.replay.batch_size, cfg.replay.timesteps,
-    cfg.replay.prioritisation,
-    cfg.replay.task_uniform,
-    replay_path if cfg.replay.use_disk else None,
-    cams, cfg.method.voxel_sizes,
-    cfg.rlbench.camera_resolution)
+    if eval_cfg.temperature.load_indiv_temp:
+        eval_cfg.temperature.temperature_use_hard_temp = True
+        single_task_name = tasks[0]
+        temp_path = '/home/bobwu/shared/temp_train_5tasks/' + single_task_name + '/'
+        eval_cfg.temperature.temperature_hard_temp = float(torch.load(temp_path + single_task_name + '_temperature.pth'))
+        print(eval_cfg.temperature.temperature_hard_temp)
 
-    peract_bc.launch_utils.fill_multi_task_replay(
-        cfg, obs_config, rank,
-        replay_buffer, tasks, cfg.rlbench.demos,
-        cfg.method.demo_augmentation, cfg.method.demo_augmentation_every_n,
-        cams, cfg.rlbench.scene_bounds,
-        cfg.method.voxel_sizes, cfg.method.bounds_offset,
-        cfg.method.rotation_resolution, cfg.method.crop_augmentation,
-        keypoint_method=cfg.method.keypoint_method)
-    agent = peract_bc.launch_utils.create_agent(train_cfg)
-    logging.info('agents layer {}'.format(agent))
-    wrapped_replay = PyTorchReplayBuffer(replay_buffer, num_workers=cfg.framework.num_workers)
-    ### end adding support for expert demo extraction
-    # wrapped_replay = None
-    cfg = train_cfg
     temperature_scaler = TemperatureScaler(
         device = rank,
         rotation_resolution = cfg.method.rotation_resolution,
@@ -154,9 +167,21 @@ def eval_seed(train_cfg,
         rot_loss_weight=cfg.method.rot_loss_weight,
         grip_loss_weight=cfg.method.grip_loss_weight,
         collision_loss_weight=cfg.method.collision_loss_weight,
-        training=cfg.temperature.temperature_training,
-        use_hard_temp = cfg.temperature.temperature_use_hard_temp,
-        hard_temp = cfg.temperature.temperature_hard_temp)
+        training=eval_cfg.temperature.temperature_training,
+        use_hard_temp = eval_cfg.temperature.temperature_use_hard_temp,
+        hard_temp = eval_cfg.temperature.temperature_hard_temp)
+    
+    
+    tau = eval_cfg.risk.tau,
+    trans_conf_thresh = eval_cfg.risk.trans_conf_thresh,
+    rot_conf_thresh = eval_cfg.risk.rot_conf_thresh,
+    search_size = eval_cfg.risk.search_size,
+    search_step = eval_cfg.risk.search_step
+    print("tau:", tau)
+    print("trans_conf_thresh:", trans_conf_thresh)
+    print("rot_conf_thresh:", rot_conf_thresh)
+    print("search_size:", search_size)
+    print("search_step:", search_step) 
     
     action_selection = ActionSelection(
             device = rank, 
@@ -164,13 +189,18 @@ def eval_seed(train_cfg,
             batch_size = cfg.replay.batch_size, 
             num_rotation_classes = int(360. // cfg.method.rotation_resolution), 
             voxel_size = cfg.method.voxel_sizes[0],
-            temperature = cfg.temperature.temperature_hard_temp,
-            alpha1 = cfg.risk.alpha1,
-            alpha2 = cfg.risk.alpha2,
-            alpha3 = cfg.risk.alpha3,
-            alpha4 = cfg.risk.alpha4,
-            tau = cfg.risk.tau,
-            conf_thresh = cfg.risk.conf_thresh)
+            temperature = eval_cfg.temperature.temperature_hard_temp,
+            alpha1 = eval_cfg.risk.alpha1,
+            alpha2 = eval_cfg.risk.alpha2,
+            alpha3 = eval_cfg.risk.alpha3,
+            alpha4 = eval_cfg.risk.alpha4,
+            tau = eval_cfg.risk.tau,
+            trans_conf_thresh = eval_cfg.risk.trans_conf_thresh,
+            rot_conf_thresh = eval_cfg.risk.rot_conf_thresh,
+            search_size = eval_cfg.risk.search_size,
+            search_step = eval_cfg.risk.search_step,
+            log_dir = eval_cfg.risk.log_dir,
+            enabled = eval_cfg.risk.enabled)
 
     # agent.build(training=False, device=rank, temperature_scaler=temperature_scaler, action_selection=action_selection)
     # agent.build(training=False, device=None, temperature_scaler=temperature_scaler, action_selection=action_selection)
@@ -333,6 +363,7 @@ def main(eval_cfg: DictConfig) -> None:
                                 'seed%d' % start_seed)
 
     train_config_path = os.path.join(logdir, 'config.yaml')
+    print('train_config_path', train_config_path)
     if os.path.exists(train_config_path):
         with open(train_config_path, 'r') as f:
             train_cfg = OmegaConf.load(f)

@@ -133,6 +133,7 @@ def _get_action(
         if depth > 0:
             if crop_augmentation:
                 shift = bounds_offset[depth - 1] * 0.75
+                # np.random.seed(0)
                 attention_coordinate += np.random.uniform(-shift, shift, size=(3,))
             bounds = np.concatenate([attention_coordinate - bounds_offset[depth - 1],
                                      attention_coordinate + bounds_offset[depth - 1]])

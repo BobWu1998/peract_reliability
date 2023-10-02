@@ -132,7 +132,6 @@ def run_seed(rank,
     else:
         raise ValueError('Method %s does not exists.' % cfg.method.name)
 
-
     wrapped_replay = PyTorchReplayBuffer(replay_buffer, num_workers=cfg.framework.num_workers)
     stat_accum = SimpleAccumulator(eval_video_fps=30)
 
@@ -153,7 +152,9 @@ def run_seed(rank,
         collision_loss_weight=cfg.method.collision_loss_weight,
         training=cfg.temperature.temperature_training,
         use_hard_temp = cfg.temperature.temperature_use_hard_temp,
-        hard_temp = cfg.temperature.temperature_hard_temp)
+        hard_temp = cfg.temperature.temperature_hard_temp,
+        training_iter = cfg.temperature.temperature_training_iter,
+        temp_log_root=cfg.temperature.temp_log_root)
     
     action_selection = ActionSelection(
             device = rank, 
@@ -167,8 +168,13 @@ def run_seed(rank,
             alpha3 = cfg.risk.alpha3,
             alpha4 = cfg.risk.alpha4,
             tau = cfg.risk.tau,
-            conf_thresh = cfg.risk.conf_thresh)
-
+            trans_conf_thresh = cfg.risk.trans_conf_thresh,
+            rot_conf_thresh = cfg.risk.rot_conf_thresh,
+            search_size = cfg.risk.search_size,
+            search_step = cfg.risk.search_step,
+            log_dir = cfg.risk.log_dir,
+            enabled = cfg.risk.enabled)
+    print('action_selection initialized')
     train_runner = OfflineTrainRunner(
         agent=agent,
         wrapped_replay_buffer=wrapped_replay,
@@ -189,7 +195,7 @@ def run_seed(rank,
         task_name = task,
         temperature_scaler = temperature_scaler,
         action_selection = action_selection)
-
+    print('OfflineTrainRunner initialized')
     train_runner.start()
 
     del train_runner

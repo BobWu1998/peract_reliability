@@ -30,6 +30,8 @@ from uncertainty_module.temperature_scaling import TemperatureScaler
 
 from uncertainty_module.action_selection import ActionSelection
 
+# from torch.utils.tensorboard import SummaryWriter
+
 
 NAME = 'QAttentionAgent'
 
@@ -184,7 +186,7 @@ class QAttentionPerActBCAgent(Agent):
         self.dist_score_from_best_list = []
         self.dist_score_from_safe_list = []
         
-        
+        # self.temp_writer = writer = SummaryWriter('runs/my_experiment')
 
     def build(self, training: bool, device: torch.device = None, temperature_scaler = None, action_selection = None):
         self._training = training
@@ -296,6 +298,36 @@ class QAttentionPerActBCAgent(Agent):
 
             self._voxelizer.to(device)
             self._q.to(device)
+            
+            if self.temperature_scaler.training:
+                # one-hot zero tensors
+                self._action_trans_one_hot_zeros = torch.zeros((self._batch_size,
+                                                                1,
+                                                                self._voxel_size,
+                                                                self._voxel_size,
+                                                                self._voxel_size),
+                                                                dtype=int,
+                                                                device=device)
+                self._action_rot_x_one_hot_zeros = torch.zeros((self._batch_size,
+                                                                self._num_rotation_classes),
+                                                                dtype=int,
+                                                                device=device)
+                self._action_rot_y_one_hot_zeros = torch.zeros((self._batch_size,
+                                                                self._num_rotation_classes),
+                                                                dtype=int,
+                                                                device=device)
+                self._action_rot_z_one_hot_zeros = torch.zeros((self._batch_size,
+                                                                self._num_rotation_classes),
+                                                                dtype=int,
+                                                                device=device)
+                self._action_grip_one_hot_zeros = torch.zeros((self._batch_size,
+                                                            2),
+                                                            dtype=int,
+                                                            device=device)
+                self._action_ignore_collisions_one_hot_zeros = torch.zeros((self._batch_size,
+                                                                            2),
+                                                                            dtype=int,
+                                                                            device=device)
 
     def _extract_crop(self, pixel_action, observation):
         # Pixel action will now be (B, 2)
@@ -505,9 +537,10 @@ class QAttentionPerActBCAgent(Agent):
                           (q_collision_loss * self._collision_loss_weight)
         total_loss = combined_losses.mean()
         # print('gt_rot_grip {}, ')
-        # print('rot_and_grip_indicies {}, action_rot_grip {}'.format(rot_and_grip_indicies, action_rot_grip))
-        # print('ignore_collision_indicies {}, action_ignore_collisions {}'.format(ignore_collision_indicies, action_ignore_collisions))
-        # print('coords {}, action_trans {}, trans_loss {}, total_loss {}'.format(coords, action_trans, q_trans_loss.mean(), total_loss))
+        print('coords {}, action_trans {}, trans_loss {}, total_loss {}'.format(coords, action_trans, q_trans_loss.mean(), total_loss))
+        print('rot_and_grip_indicies {}, action_rot_grip {}'.format(rot_and_grip_indicies, action_rot_grip))
+        print('ignore_collision_indicies {}, action_ignore_collisions {}'.format(ignore_collision_indicies, action_ignore_collisions))
+        
         # pdb.set_trace()
         # _q_trans = self._softmax_q_trans(q_trans)
         # trans_confidence = _q_trans.max().detach()
@@ -538,12 +571,13 @@ class QAttentionPerActBCAgent(Agent):
         # safest_actions = self.action_selection.get_safest_action_search_around_max(confidences, 
         #                                                                           [coords, rot_and_grip_indicies, ignore_collision_indicies])
         # safest_actions = self.action_selection.get_safest_action_from_each_space(confidences)
-        safest_actions = self.action_selection.get_safest_action_from_each_space_select_around_mean(confidences)
+        # safest_actions, center_trans = self.action_selection.get_safest_action_from_each_space_select_around_mean(confidences)
 
         self.lowest_conf = min(total_conf, self.lowest_conf)
 
         # evaluate prediction correctness
         # changed everything from 0 to -1
+        # pdb.set_trace()
         true_trans = all(action_trans[-1] == coords[-1])
         true_rot_and_grip = all(gt_rot_grip==rot_and_grip_indicies[-1])
         true_ignore_collisions = all(gt_ignore_collisions == ignore_collision_indicies[-1])
@@ -555,34 +589,31 @@ class QAttentionPerActBCAgent(Agent):
         else:
             true_pred = 0
         
-        target_actions = [action_trans.float(), action_rot_grip.float(), action_ignore_collisions.float()]
-        actions = [coords.float(), rot_and_grip_indicies.float(), ignore_collision_indicies.float()]
+        # target_actions = [action_trans.float(), action_rot_grip.float(), action_ignore_collisions.float()]
+        # actions = [coords.float(), rot_and_grip_indicies.float(), ignore_collision_indicies.float()]
         # print('true_pred', true_pred)
         
         # print('get_action_diff', self.action_selection.get_action_diff(actions, target_actions))
-        true_actions = [action_trans[-1], gt_rot_grip, gt_ignore_collisions]
-        best_actions = [coords[-1], rot_and_grip_indicies[-1], ignore_collision_indicies[-1]]
+        # true_actions = [action_trans[-1], gt_rot_grip, gt_ignore_collisions]
+        # best_actions = [coords[-1], rot_and_grip_indicies[-1], ignore_collision_indicies[-1]]
 
-        print(safest_actions)
-        print(best_actions)
-        # pdb.set_trace()
-        # dist_score_from_best = self.action_selection.get_action_diff(true_actions, best_actions)
-        # dist_score_from_safe = self.action_selection.get_action_diff(true_actions, safest_actions)
-        dist_score_from_best = self.action_selection.get_trans_rot_diff(true_actions, best_actions)
-        dist_score_from_safe = self.action_selection.get_trans_rot_diff(true_actions, safest_actions)
-        print('---')
-        print('dist_score_from_best', dist_score_from_best)
-        print('dist_score_from_safe', dist_score_from_safe)
-        self.dist_score_from_best_list.append(dist_score_from_best.item())
-        self.dist_score_from_safe_list.append(dist_score_from_safe.item())
-        if abs(dist_score_from_best-dist_score_from_safe)>500:
-            pdb.set_trace()
-        if len(self.dist_score_from_best_list)%10==0:
-            print('??dist score from best:')
-            print(sum(self.dist_score_from_best_list)/len(self.dist_score_from_best_list))
-            print('??dist score from safe:')
-            print(sum(self.dist_score_from_safe_list)/len(self.dist_score_from_safe_list))
-        print('---')
+        # print(safest_actions)
+        # print(best_actions)
+        # dist_score_from_best = self.action_selection.get_trans_rot_diff(true_actions, best_actions)
+        # dist_score_from_safe = self.action_selection.get_trans_rot_diff(true_actions, safest_actions)
+        # print('---')
+        # print('dist_score_from_best', dist_score_from_best)
+        # print('dist_score_from_safe', dist_score_from_safe)
+        # self.dist_score_from_best_list.append(dist_score_from_best.item())
+        # self.dist_score_from_safe_list.append(dist_score_from_safe.item())
+        # if abs(dist_score_from_best-dist_score_from_safe)>500:
+        #     pdb.set_trace()
+        # if len(self.dist_score_from_best_list)%10==0:
+        #     print('??dist score from best:')
+        #     print(sum(self.dist_score_from_best_list)/len(self.dist_score_from_best_list))
+        #     print('??dist score from safe:')
+        #     print(sum(self.dist_score_from_safe_list)/len(self.dist_score_from_safe_list))
+        # print('---')
         
         
         # pdb.set_trace()
@@ -593,15 +624,22 @@ class QAttentionPerActBCAgent(Agent):
         
         # udpate the temperature scaler
         if self.temperature_scaler.training:
+            q_trans_after, q_rot_grip_after, q_collision_after = self.temperature_scaler.scale_logits([q_trans, q_rot_grip, q_collision])
+            logits = [q_trans_after, q_rot_grip_after, q_collision_after]
+            labels = [action_trans, action_rot_grip, action_ignore_collisions]
+            
+            temp_scaler_loss = self.temperature_scaler.compute_loss(logits, labels)
             self.temperature_scaler.optimizer.zero_grad()
             temp_scaler_loss.backward()
             self.temperature_scaler.optimizer.step()
+            self.temperature_scaler.scheduler.step()
+
+            after_temp_scaler_loss = self.temperature_scaler.compute_loss(self.temperature_scaler.scale_logits(logits), labels).item()
+        else:
             q_trans_after, q_rot_grip_after, q_collision_after = self.temperature_scaler.scale_logits([q_trans, q_rot_grip, q_collision])
             logits = [q_trans_after, q_rot_grip_after, q_collision_after]
             labels = [action_trans, action_rot_grip, action_ignore_collisions]
             temp_scaler_loss = self.temperature_scaler.compute_loss(logits, labels)
-            after_temp_scaler_loss = self.temperature_scaler.compute_loss(self.temperature_scaler.scale_logits(logits), labels).item()
-
 
         self._summaries = {
             'losses/total_loss': total_loss,
@@ -633,8 +671,8 @@ class QAttentionPerActBCAgent(Agent):
             prev_layer_bounds = prev_layer_bounds + [bounds]
         # print('trans_confidence {}, true_pred {}'.format(total_conf, true_pred))
 
-        # print('Current temperature is {}'.format(self.temperature_scaler.temperature))
-        # print('lowest conf {}'.format(self.lowest_conf))
+        print('Current temperature is {}'.format(self.temperature_scaler.temperature))
+        print('lowest conf {}'.format(self.lowest_conf))
         return {
             'total_loss': total_loss,
             'prev_layer_voxel_grid': prev_layer_voxel_grid,
@@ -643,7 +681,8 @@ class QAttentionPerActBCAgent(Agent):
         {
             'total_conf': [total_conf],
             'true_pred': [true_pred],
-            'temp_scaler_loss': -1
+            'temp_scaler_loss': temp_scaler_loss,
+            'temp_scaler': self.temperature_scaler.temperature
         }
 
     def act(self, step: int, observation: dict,
@@ -773,7 +812,7 @@ class QAttentionPerActBCAgent(Agent):
         
         confidences = [trans_conf_softmax, rot_conf_softmax, grip_conf_softmax, collision_conf_softmax]
 
-        safest_actions = self.action_selection.get_safest_action_from_each_space_select_around_mean(confidences)
+        safest_actions, center_trans = self.action_selection.get_safest_action_from_each_space_select_around_mean(confidences, coords)
         
         best_actions = (coords, rot_grip_action, ignore_collisions_action)
         # Ensure both lists/tuples are of the same length
@@ -781,24 +820,28 @@ class QAttentionPerActBCAgent(Agent):
             print("The lists are not the same.")
         else:
             # Compare each tensor in the lists
-            are_same = all(torch.equal(a.squeeze(), b.squeeze()) for a, b in zip(safest_actions, best_actions))
-
+            # are_same = all(torch.equal(a.squeeze(), b.squeeze()) for a, b in zip(safest_actions, best_actions))
+            are_same = all(torch.sum(torch.abs(a.squeeze() - b.squeeze())) <= self.action_selection._search_step for a, b in zip(safest_actions, best_actions))
             if are_same:
-                print("The lists are the same.")
+                pass
+                # print("The lists are the same.")
             else:
                 print("The lists are not the same.")
-                print('safest actions', safest_actions)
-                print('best   actions', (coords, rot_grip_action, ignore_collisions_action))
+                print('center  trans', center_trans)
+                print('safest actions', torch.cat(safest_actions))
+                print('best   actions', torch.cat([coords[0], rot_grip_action[0], ignore_collisions_action[0]]))
 
 
         # pdb.set_trace()
         #TODO: turn these guys on if want to use best actions
-        # return ActResult((coords, rot_grip_action, ignore_collisions_action),
-        #                  observation_elements=observation_elements,
-        #                  info=info)          
-        return ActResult((safest_actions[0].view(1,-1), safest_actions[1].view(1,-1), safest_actions[2].view(1,-1)),
-                         observation_elements=observation_elements,
-                         info=info)   
+        if not self.action_selection.enabled:
+            return ActResult((coords, rot_grip_action, ignore_collisions_action),
+                            observation_elements=observation_elements,
+                            info=info)          
+        else:
+            return ActResult((safest_actions[0].view(1,-1), safest_actions[1].view(1,-1), safest_actions[2].view(1,-1)),
+                            observation_elements=observation_elements,
+                            info=info)   
 
     def update_summaries(self) -> List[Summary]:
         summaries = [

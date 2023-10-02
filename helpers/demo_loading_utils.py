@@ -43,6 +43,7 @@ def keypoint_discovery(demo: Demo,
 
     elif method == 'random':
         # Randomly select keypoints.
+        # np.random.seed(0)
         episode_keypoints = np.random.choice(
             range(len(demo)),
             size=20,

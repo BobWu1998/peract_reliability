@@ -305,10 +305,14 @@ def preprocess(img, dist='transporter'):
 
 
 def rand_dist(size, min=-1.0, max=1.0):
+    # torch.manual_seed(0)
+    # torch.cuda.manual_seed(0)
     return (max-min) * torch.rand(size) + min
 
 
 def rand_discrete(size, min=0, max=1):
+    # torch.manual_seed(0)
+    # torch.cuda.manual_seed(0)
     if min == max:
         return torch.zeros(size)
     return torch.randint(min, max+1, size)

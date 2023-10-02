@@ -45,13 +45,15 @@ class QAttentionStackAgent(Agent):
             total_conf.extend(update_conf['total_conf'])
             total_true_pred.extend(update_conf['true_pred'])
             total_temp_scaler_loss += update_conf['temp_scaler_loss']
+            temp_scaler = update_conf['temp_scaler']
         return {
             'total_losses': total_losses
         }, \
         {
             'total_conf': total_conf,
             'total_true_pred': total_true_pred,
-            'total_temp_scaler_loss': total_temp_scaler_loss
+            'total_temp_scaler_loss': total_temp_scaler_loss,
+            'temp_scaler': temp_scaler
         }
 
 

@@ -1,11 +1,11 @@
 ddp:
     master_addr: "localhost"
-    master_port: "29600" #"29501" #"29500"
+    master_port: "29601" #"29600" #"29501" #"29500"
     num_devices: 1
 
 rlbench:
     task_name: "multi"
-    tasks: [put_money_in_safe] #[open_drawer] #,slide_block_to_color_target]
+    tasks: [put_money_in_safe] #[put_money_in_safe] #[open_drawer] #,slide_block_to_color_target]
     demos: 10 #100
     demo_path: $PERACT_ROOT/data/val  #/my/demo/path #/home/bobwu/UQ/peract_headless/peract_reliability/data/val #
     episode_length: 25
@@ -45,20 +45,27 @@ framework:
 
 temperature:
     temperature_training: False
+    temperature_training_iter: 10000
     temperature_use_hard_temp: True #False
-    temperature_hard_temp: 3 #3 #1.5 #3 
+    temperature_hard_temp: 3 #3 #3 #1.5 #3
+    load_indiv_temp: False
     # 3 for put_money_in_safe
     # 5.5 for push buttons
     # 1.5 for open_drawer
+    temp_log_root: '/home/bobwu/shared/temp_train_5tasks_0'
 
-risk: # use risk averse action
-    alpha1: 1
-    alpha2: 1
-    alpha3: 1000
-    alpha4: 1000
-    tau: 10
-    conf_thresh: 1e-5
-
+risk:
+  alpha1: 1
+  alpha2: 1
+  alpha3: 1000
+  alpha4: 1000
+  tau: 5
+  trans_conf_thresh: 1.0e-6
+  rot_conf_thresh: 0.014 #1/72
+  search_size: 20
+  search_step: 2
+  log_dir: /home/bobwu/shared/safe_action_new/ # /home/bobwu/shared/safe_action_conf100_set/
+  enabled: False
 defaults:
     - method: C2FARM
 
