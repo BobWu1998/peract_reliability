@@ -41,7 +41,9 @@ from yarr.replay_buffer.wrappers.pytorch_replay_buffer import \
 
 import psutil
 
-from uncertainty_module.temperature_scaling import TemperatureScaler
+# from uncertainty_module.src.base.calib_scaling import CalibScaler
+from uncertainty_module.src.temperature_scaling.temperature_scaling import TemperatureScaler
+from uncertainty_module.src.vector_scaling.vector_scaling import VectorScaler
 from uncertainty_module.action_selection import ActionSelection
 
 
@@ -150,27 +152,48 @@ def eval_seed(train_cfg,
     rank = world_size-1
     # print('cfg.temperature.temperature_hard_temp',eval_cfg.temperature.temperature_hard_temp)
     
-    if eval_cfg.temperature.load_indiv_temp:
-        eval_cfg.temperature.temperature_use_hard_temp = True
-        single_task_name = tasks[0]
-        temp_path = '/home/bobwu/shared/temp_train_5tasks/' + single_task_name + '/'
-        eval_cfg.temperature.temperature_hard_temp = float(torch.load(temp_path + single_task_name + '_temperature.pth'))
-        print(eval_cfg.temperature.temperature_hard_temp)
 
-    temperature_scaler = TemperatureScaler(
-        device = rank,
-        rotation_resolution = cfg.method.rotation_resolution,
-        batch_size = cfg.replay.batch_size,
-        num_rotation_classes = int(360. // cfg.method.rotation_resolution),
-        voxel_size = cfg.method.voxel_sizes[0],
-        trans_loss_weight=cfg.method.trans_loss_weight,
-        rot_loss_weight=cfg.method.rot_loss_weight,
-        grip_loss_weight=cfg.method.grip_loss_weight,
-        collision_loss_weight=cfg.method.collision_loss_weight,
-        training=eval_cfg.temperature.temperature_training,
-        use_hard_temp = eval_cfg.temperature.temperature_use_hard_temp,
-        hard_temp = eval_cfg.temperature.temperature_hard_temp)
-    
+
+    print('cfg.scaler.type', eval_cfg.scaler.type)
+    if eval_cfg.scaler.type == 'temperature':
+        
+        if eval_cfg.temperature.load_indiv_temp:
+            eval_cfg.temperature.temperature_use_hard_temp = True
+            single_task_name = tasks[0]
+            temp_path = '/home/bobwu/shared/temp_train_5tasks/' + single_task_name + '/'
+            eval_cfg.temperature.temperature_hard_temp = float(torch.load(temp_path + single_task_name + '_temperature.pth'))
+            print(eval_cfg.temperature.temperature_hard_temp)
+            
+        calib_scaler = TemperatureScaler(
+            device = rank,
+            rotation_resolution = cfg.method.rotation_resolution,
+            batch_size = cfg.replay.batch_size,
+            num_rotation_classes = int(360. // cfg.method.rotation_resolution),
+            voxel_size = cfg.method.voxel_sizes[0],
+            trans_loss_weight=cfg.method.trans_loss_weight,
+            rot_loss_weight=cfg.method.rot_loss_weight,
+            grip_loss_weight=cfg.method.grip_loss_weight,
+            collision_loss_weight=cfg.method.collision_loss_weight,
+            training=eval_cfg.temperature.temperature_training,
+            use_hard_temp = eval_cfg.temperature.temperature_use_hard_temp,
+            hard_temp = eval_cfg.temperature.temperature_hard_temp)
+    else:
+        calib_scaler = VectorScaler(
+            calib_type = cfg.scaler.type,
+            device = rank,
+            rotation_resolution = cfg.method.rotation_resolution,
+            batch_size = cfg.replay.batch_size,
+            num_rotation_classes = int(360. // cfg.method.rotation_resolution),
+            voxel_size = cfg.method.voxel_sizes[0],
+            trans_loss_weight=cfg.method.trans_loss_weight,
+            rot_loss_weight=cfg.method.rot_loss_weight,
+            grip_loss_weight=cfg.method.grip_loss_weight,
+            collision_loss_weight=cfg.method.collision_loss_weight,
+            training = eval_cfg.vector.vector_training,
+            training_iter = eval_cfg.vector.vector_training_iter,
+            scaler_log_root = eval_cfg.vector.vector_log_root)    
+        
+        calib_scaler.load_parameter(task_name=tasks[0])    
     
     tau = eval_cfg.risk.tau,
     trans_conf_thresh = eval_cfg.risk.trans_conf_thresh,
@@ -224,7 +247,7 @@ def eval_seed(train_cfg,
         num_eval_runs=len(tasks),
         multi_task=multi_task,
         wrapped_replay=wrapped_replay,
-        temperature_scaler=temperature_scaler,
+        calib_scaler=calib_scaler,
         action_selection=action_selection)
 
     manager = Manager()

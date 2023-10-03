@@ -25,35 +25,35 @@ class QAttentionStackAgent(Agent):
         self._camera_names = camera_names
         self._rotation_prediction_depth = rotation_prediction_depth
 
-    def build(self, training: bool, device=None, temperature_scaler = None, action_selection = None) -> None:
+    def build(self, training: bool, device=None, calib_scaler = None, action_selection = None) -> None:
         self._device = device
         if self._device is None:
             self._device = torch.device('cpu')
         for qa in self._qattention_agents:
-            qa.build(training, device, temperature_scaler, action_selection)
+            qa.build(training, device, calib_scaler, action_selection)
 
     def update(self, step: int, replay_sample: dict) -> dict:
         priorities = 0
         total_losses = 0.
         total_conf = []
         total_true_pred = []
-        total_temp_scaler_loss = 0.
+        total_scaler_loss = 0.
         for qa in self._qattention_agents:
             update_dict, update_conf = qa.update(step, replay_sample)
             replay_sample.update(update_dict)
             total_losses += update_dict['total_loss']
             total_conf.extend(update_conf['total_conf'])
             total_true_pred.extend(update_conf['true_pred'])
-            total_temp_scaler_loss += update_conf['temp_scaler_loss']
-            temp_scaler = update_conf['temp_scaler']
+            total_scaler_loss += update_conf['scaler_loss']
+            scaler = update_conf['scaler']
         return {
             'total_losses': total_losses
         }, \
         {
             'total_conf': total_conf,
             'total_true_pred': total_true_pred,
-            'total_temp_scaler_loss': total_temp_scaler_loss,
-            'temp_scaler': temp_scaler
+            'total_scaler_loss': total_scaler_loss,
+            'scaler': scaler
         }
 
 
@@ -121,9 +121,9 @@ class QAttentionStackAgent(Agent):
     def load_weights(self, savedir: str):
         for qa in self._qattention_agents:
             qa.load_weights(savedir)
-            qa.temperature_scaler.load_temperature()
+            # qa.calib_scaler.load_parameter()
 
     def save_weights(self, savedir: str):
         for qa in self._qattention_agents:
             qa.save_weights(savedir)
-            qa.temperature_scaler.save_temperature()
+            # qa.calib_scaler.save_parameter()

@@ -22,7 +22,10 @@ from agents import peract_bc
 from agents import arm
 from agents.baselines import bc_lang, vit_bc_lang
 
-from uncertainty_module.temperature_scaling import TemperatureScaler
+
+from uncertainty_module.src.base.calib_scaling import CalibScaler
+from uncertainty_module.src.temperature_scaling.temperature_scaling import TemperatureScaler
+from uncertainty_module.src.vector_scaling.vector_scaling import VectorScaler
 from uncertainty_module.action_selection import ActionSelection
 
 def run_seed(rank,
@@ -34,7 +37,7 @@ def run_seed(rank,
              world_size) -> None:
     dist.init_process_group("gloo",
                             rank=rank,
-                            world_size=world_size)
+                            world_size=world_size) 
 
     task = cfg.rlbench.tasks[0]
     tasks = cfg.rlbench.tasks
@@ -140,21 +143,39 @@ def run_seed(rank,
     logdir = os.path.join(cwd, 'seed%d' % seed)
 
     # weightsdir = '/home/bobwu/UQ/peract_headless/peract_reliability/ckpts/multi/PERACT_BC/seed0/weights'
-    temperature_scaler = TemperatureScaler(
-        device = rank,
-        rotation_resolution = cfg.method.rotation_resolution,
-        batch_size = cfg.replay.batch_size,
-        num_rotation_classes = int(360. // cfg.method.rotation_resolution),
-        voxel_size = cfg.method.voxel_sizes[0],
-        trans_loss_weight=cfg.method.trans_loss_weight,
-        rot_loss_weight=cfg.method.rot_loss_weight,
-        grip_loss_weight=cfg.method.grip_loss_weight,
-        collision_loss_weight=cfg.method.collision_loss_weight,
-        training=cfg.temperature.temperature_training,
-        use_hard_temp = cfg.temperature.temperature_use_hard_temp,
-        hard_temp = cfg.temperature.temperature_hard_temp,
-        training_iter = cfg.temperature.temperature_training_iter,
-        temp_log_root=cfg.temperature.temp_log_root)
+    print('cfg.scaler.type', cfg.scaler.type)
+    if cfg.scaler.type == 'temperature':
+        calib_scaler = TemperatureScaler(
+            calib_type = cfg.scaler.type,
+            device = rank,
+            rotation_resolution = cfg.method.rotation_resolution,
+            batch_size = cfg.replay.batch_size,
+            num_rotation_classes = int(360. // cfg.method.rotation_resolution),
+            voxel_size = cfg.method.voxel_sizes[0],
+            trans_loss_weight=cfg.method.trans_loss_weight,
+            rot_loss_weight=cfg.method.rot_loss_weight,
+            grip_loss_weight=cfg.method.grip_loss_weight,
+            collision_loss_weight=cfg.method.collision_loss_weight,
+            training=cfg.temperature.temperature_training,
+            use_hard_temp = cfg.temperature.temperature_use_hard_temp,
+            hard_temp = cfg.temperature.temperature_hard_temp,
+            training_iter = cfg.temperature.temperature_training_iter,
+            scaler_log_root=cfg.temperature.temp_log_root)
+    else:
+        calib_scaler = VectorScaler(
+            calib_type = cfg.scaler.type,
+            device = rank,
+            rotation_resolution = cfg.method.rotation_resolution,
+            batch_size = cfg.replay.batch_size,
+            num_rotation_classes = int(360. // cfg.method.rotation_resolution),
+            voxel_size = cfg.method.voxel_sizes[0],
+            trans_loss_weight=cfg.method.trans_loss_weight,
+            rot_loss_weight=cfg.method.rot_loss_weight,
+            grip_loss_weight=cfg.method.grip_loss_weight,
+            collision_loss_weight=cfg.method.collision_loss_weight,
+            training=cfg.vector.vector_training,
+            training_iter = cfg.vector.vector_training_iter,
+            scaler_log_root=cfg.vector.vector_log_root)        
     
     action_selection = ActionSelection(
             device = rank, 
@@ -193,7 +214,7 @@ def run_seed(rank,
         rank=rank,
         world_size=world_size,
         task_name = task,
-        temperature_scaler = temperature_scaler,
+        calib_scaler = calib_scaler,
         action_selection = action_selection)
     print('OfflineTrainRunner initialized')
     train_runner.start()

@@ -26,10 +26,6 @@ from helpers.optim.lamb import Lamb
 from torch.nn.parallel import DistributedDataParallel as DDP
 import pdb
 
-from uncertainty_module.temperature_scaling import TemperatureScaler
-
-from uncertainty_module.action_selection import ActionSelection
-
 # from torch.utils.tensorboard import SummaryWriter
 
 
@@ -188,14 +184,14 @@ class QAttentionPerActBCAgent(Agent):
         
         # self.temp_writer = writer = SummaryWriter('runs/my_experiment')
 
-    def build(self, training: bool, device: torch.device = None, temperature_scaler = None, action_selection = None):
+    def build(self, training: bool, device: torch.device = None, calib_scaler = None, action_selection = None):
         self._training = training
         self._device = device
 
         if device is None:
             device = torch.device('cpu')
             
-        self.temperature_scaler = temperature_scaler
+        self.calib_scaler = calib_scaler
         
         self.action_selection = action_selection
         
@@ -299,7 +295,7 @@ class QAttentionPerActBCAgent(Agent):
             self._voxelizer.to(device)
             self._q.to(device)
             
-            if self.temperature_scaler.training:
+            if self.calib_scaler.training:
                 # one-hot zero tensors
                 self._action_trans_one_hot_zeros = torch.zeros((self._batch_size,
                                                                 1,
@@ -328,7 +324,18 @@ class QAttentionPerActBCAgent(Agent):
                                                                             2),
                                                                             dtype=int,
                                                                             device=device)
+        # for param in self._q.parameters():
+        #     param.requires_grad = False
 
+        # # load CLIP for encoding language goals during evaluation
+        # model, _ = load_clip("RN50", jit=False)
+        # self._clip_rn50 = build_model(model.state_dict())
+        # self._clip_rn50 = self._clip_rn50.float().to(device)
+        # self._clip_rn50.eval()
+        # del model
+
+        # self._voxelizer.to(device)
+        # self._q.to(device)
     def _extract_crop(self, pixel_action, observation):
         # Pixel action will now be (B, 2)
         # observation = stack_on_channel(observation)
@@ -547,8 +554,8 @@ class QAttentionPerActBCAgent(Agent):
         
         
         # scale the q values with temperature scaling, before it updates the scaling value
-        q_trans_before, q_rot_grip_before, q_collision_before = self.temperature_scaler.scale_logits([q_trans, q_rot_grip, q_collision])
-        print('temperature', self.temperature_scaler.temperature)
+        q_trans_before, q_rot_grip_before, q_collision_before = self.calib_scaler.scale_logits([q_trans, q_rot_grip, q_collision])
+        # print('temperature', self.temperature_scaler.temperature)
         # calculate the total confidence
         trans_conf_softmax = self._softmax_q_trans(q_trans_before)
         trans_conf = trans_conf_softmax.max().detach().cpu().item()
@@ -623,23 +630,25 @@ class QAttentionPerActBCAgent(Agent):
         # self._optimizer.step()
         
         # udpate the temperature scaler
-        if self.temperature_scaler.training:
-            q_trans_after, q_rot_grip_after, q_collision_after = self.temperature_scaler.scale_logits([q_trans, q_rot_grip, q_collision])
+        if self.calib_scaler.training:
+            q_trans_after, q_rot_grip_after, q_collision_after = self.calib_scaler.scale_logits([q_trans, q_rot_grip, q_collision])
             logits = [q_trans_after, q_rot_grip_after, q_collision_after]
             labels = [action_trans, action_rot_grip, action_ignore_collisions]
             
-            temp_scaler_loss = self.temperature_scaler.compute_loss(logits, labels)
-            self.temperature_scaler.optimizer.zero_grad()
-            temp_scaler_loss.backward()
-            self.temperature_scaler.optimizer.step()
-            self.temperature_scaler.scheduler.step()
+            scaler_loss = self.calib_scaler.compute_loss(logits, labels)
+            print(scaler_loss)
+            print(self.calib_scaler.compute_loss([q_trans, q_rot_grip, q_collision], labels))
+            self.calib_scaler.optimizer.zero_grad()
+            scaler_loss.backward()
+            self.calib_scaler.optimizer.step()
+            self.calib_scaler.scheduler.step()
 
-            after_temp_scaler_loss = self.temperature_scaler.compute_loss(self.temperature_scaler.scale_logits(logits), labels).item()
+            after_scaler_loss = self.calib_scaler.compute_loss(self.calib_scaler.scale_logits(logits), labels).item()
         else:
-            q_trans_after, q_rot_grip_after, q_collision_after = self.temperature_scaler.scale_logits([q_trans, q_rot_grip, q_collision])
+            q_trans_after, q_rot_grip_after, q_collision_after = self.calib_scaler.scale_logits([q_trans, q_rot_grip, q_collision])
             logits = [q_trans_after, q_rot_grip_after, q_collision_after]
             labels = [action_trans, action_rot_grip, action_ignore_collisions]
-            temp_scaler_loss = self.temperature_scaler.compute_loss(logits, labels)
+            scaler_loss = self.calib_scaler.compute_loss(logits, labels)
 
         self._summaries = {
             'losses/total_loss': total_loss,
@@ -671,7 +680,7 @@ class QAttentionPerActBCAgent(Agent):
             prev_layer_bounds = prev_layer_bounds + [bounds]
         # print('trans_confidence {}, true_pred {}'.format(total_conf, true_pred))
 
-        print('Current temperature is {}'.format(self.temperature_scaler.temperature))
+        # print('Current temperature is {}'.format(self.temperature_scaler.temperature))
         print('lowest conf {}'.format(self.lowest_conf))
         return {
             'total_loss': total_loss,
@@ -681,8 +690,8 @@ class QAttentionPerActBCAgent(Agent):
         {
             'total_conf': [total_conf],
             'true_pred': [true_pred],
-            'temp_scaler_loss': temp_scaler_loss,
-            'temp_scaler': self.temperature_scaler.temperature
+            'scaler_loss': scaler_loss,
+            'scaler': -1
         }
 
     def act(self, step: int, observation: dict,
@@ -792,7 +801,7 @@ class QAttentionPerActBCAgent(Agent):
         self._act_qvalues = q_trans[0].detach()
         
         ### scale the q values, and build the confidence list for safe action selection
-        q_trans_before, q_rot_grip_before, q_collision_before = self.temperature_scaler.scale_logits([q_trans, q_rot_grip, q_ignore_collisions])
+        q_trans_before, q_rot_grip_before, q_collision_before = self.calib_scaler.scale_logits([q_trans, q_rot_grip, q_ignore_collisions])
 
         # calculate the total confidence
         trans_conf_softmax = self._softmax_q_trans(q_trans_before)
