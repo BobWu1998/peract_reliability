@@ -160,11 +160,12 @@ def eval_seed(train_cfg,
         if eval_cfg.temperature.load_indiv_temp:
             eval_cfg.temperature.temperature_use_hard_temp = True
             single_task_name = tasks[0]
-            temp_path = '/home/bobwu/shared/temp_train_5tasks/' + single_task_name + '/'
+            temp_path = eval_cfg.temperature.temp_log_root + single_task_name + '/'
             eval_cfg.temperature.temperature_hard_temp = float(torch.load(temp_path + single_task_name + '_temperature.pth'))
             print(eval_cfg.temperature.temperature_hard_temp)
             
         calib_scaler = TemperatureScaler(
+            calib_type = cfg.scaler.type,
             device = rank,
             rotation_resolution = cfg.method.rotation_resolution,
             batch_size = cfg.replay.batch_size,

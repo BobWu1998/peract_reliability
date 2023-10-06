@@ -31,7 +31,7 @@ def main(cfg: DictConfig) -> None:
     logging.info('\n' + cfg_yaml)
 
     os.environ['MASTER_ADDR'] = cfg.ddp.master_addr
-    os.environ['MASTER_PORT'] = cfg.ddp.master_port
+    os.environ['MASTER_PORT'] = str(cfg.ddp.master_port)
     logging.debug('main function launched')
     cfg.rlbench.cameras = cfg.rlbench.cameras \
         if isinstance(cfg.rlbench.cameras, ListConfig) else [cfg.rlbench.cameras]

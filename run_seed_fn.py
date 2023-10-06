@@ -142,9 +142,26 @@ def run_seed(rank,
     weightsdir = os.path.join(cwd, 'seed%d' % seed, 'weights')
     logdir = os.path.join(cwd, 'seed%d' % seed)
 
-    # weightsdir = '/home/bobwu/UQ/peract_headless/peract_reliability/ckpts/multi/PERACT_BC/seed0/weights'
     print('cfg.scaler.type', cfg.scaler.type)
-    if cfg.scaler.type == 'temperature':
+
+    if cfg.scaler.type == 'vector':
+        calib_scaler = VectorScaler(
+            calib_type = cfg.scaler.type,
+            device = rank,
+            rotation_resolution = cfg.method.rotation_resolution,
+            batch_size = cfg.replay.batch_size,
+            num_rotation_classes = int(360. // cfg.method.rotation_resolution),
+            voxel_size = cfg.method.voxel_sizes[0],
+            trans_loss_weight=cfg.method.trans_loss_weight,
+            rot_loss_weight=cfg.method.rot_loss_weight,
+            grip_loss_weight=cfg.method.grip_loss_weight,
+            collision_loss_weight=cfg.method.collision_loss_weight,
+            training=cfg.vector.vector_training,
+            training_iter = cfg.vector.vector_training_iter,
+            scaler_log_root=cfg.vector.vector_log_root,
+            div_penalty=cfg.vector.div_penalty,
+            learning_rate=cfg.vector.learning_rate)        
+    else:
         calib_scaler = TemperatureScaler(
             calib_type = cfg.scaler.type,
             device = rank,
@@ -161,22 +178,7 @@ def run_seed(rank,
             hard_temp = cfg.temperature.temperature_hard_temp,
             training_iter = cfg.temperature.temperature_training_iter,
             scaler_log_root=cfg.temperature.temp_log_root)
-    else:
-        calib_scaler = VectorScaler(
-            calib_type = cfg.scaler.type,
-            device = rank,
-            rotation_resolution = cfg.method.rotation_resolution,
-            batch_size = cfg.replay.batch_size,
-            num_rotation_classes = int(360. // cfg.method.rotation_resolution),
-            voxel_size = cfg.method.voxel_sizes[0],
-            trans_loss_weight=cfg.method.trans_loss_weight,
-            rot_loss_weight=cfg.method.rot_loss_weight,
-            grip_loss_weight=cfg.method.grip_loss_weight,
-            collision_loss_weight=cfg.method.collision_loss_weight,
-            training=cfg.vector.vector_training,
-            training_iter = cfg.vector.vector_training_iter,
-            scaler_log_root=cfg.vector.vector_log_root)        
-    
+
     action_selection = ActionSelection(
             device = rank, 
             rotation_resolution = cfg.method.rotation_resolution,

@@ -73,7 +73,7 @@ framework:
 
 
 scaler:
-    type: 'vector'
+    type: 'temperature'
 
 temperature:
     temperature_training: False
@@ -90,6 +90,7 @@ vector:
     vector_training: False
     vector_training_iter: 1000
     vector_log_root: '/home/bobwu/shared/vector_train_5tasks_0'
+    div_penalty: 0
 
 risk:
   alpha1: 1

@@ -220,68 +220,69 @@ class QAttentionPerActBCAgent(Agent):
         self._coordinate_bounds = torch.tensor(self._coordinate_bounds,
                                                device=device).unsqueeze(0)
 
-        if self._training:
-            # optimizer
-            if self._optimizer_type == 'lamb':
-                self._optimizer = Lamb(
-                    self._q.parameters(),
-                    lr=self._lr,
-                    weight_decay=self._lambda_weight_l2,
-                    betas=(0.9, 0.999),
-                    adam=False,
-                )
-            elif self._optimizer_type == 'adam':
-                self._optimizer = torch.optim.Adam(
-                    self._q.parameters(),
-                    lr=self._lr,
-                    weight_decay=self._lambda_weight_l2,
-                )
-            else:
-                raise Exception('Unknown optimizer type')
+        # if self._training:
+        #     # optimizer
+        #     if self._optimizer_type == 'lamb':
+        #         self._optimizer = Lamb(
+        #             self._q.parameters(),
+        #             lr=self._lr,
+        #             weight_decay=self._lambda_weight_l2,
+        #             betas=(0.9, 0.999),
+        #             adam=False,
+        #         )
+        #     elif self._optimizer_type == 'adam':
+        #         self._optimizer = torch.optim.Adam(
+        #             self._q.parameters(),
+        #             lr=self._lr,
+        #             weight_decay=self._lambda_weight_l2,
+        #         )
+        #     else:
+        #         raise Exception('Unknown optimizer type')
 
-            # learning rate scheduler
-            if self._lr_scheduler:
-                self._scheduler = transformers.get_cosine_with_hard_restarts_schedule_with_warmup(
-                    self._optimizer,
-                    num_warmup_steps=self._num_warmup_steps,
-                    num_training_steps=self._training_iterations,
-                    num_cycles=self._training_iterations // 10000,
-                )
+        #     # learning rate scheduler
+        #     if self._lr_scheduler:
+        #         self._scheduler = transformers.get_cosine_with_hard_restarts_schedule_with_warmup(
+        #             self._optimizer,
+        #             num_warmup_steps=self._num_warmup_steps,
+        #             num_training_steps=self._training_iterations,
+        #             num_cycles=self._training_iterations // 10000,
+        #         )
 
-            # one-hot zero tensors
-            self._action_trans_one_hot_zeros = torch.zeros((self._batch_size,
-                                                            1,
-                                                            self._voxel_size,
-                                                            self._voxel_size,
-                                                            self._voxel_size),
-                                                            dtype=int,
-                                                            device=device)
-            self._action_rot_x_one_hot_zeros = torch.zeros((self._batch_size,
-                                                            self._num_rotation_classes),
-                                                            dtype=int,
-                                                            device=device)
-            self._action_rot_y_one_hot_zeros = torch.zeros((self._batch_size,
-                                                            self._num_rotation_classes),
-                                                            dtype=int,
-                                                            device=device)
-            self._action_rot_z_one_hot_zeros = torch.zeros((self._batch_size,
-                                                            self._num_rotation_classes),
-                                                            dtype=int,
-                                                            device=device)
-            self._action_grip_one_hot_zeros = torch.zeros((self._batch_size,
-                                                           2),
-                                                           dtype=int,
-                                                           device=device)
-            self._action_ignore_collisions_one_hot_zeros = torch.zeros((self._batch_size,
-                                                                        2),
-                                                                        dtype=int,
-                                                                        device=device)
+        #     # one-hot zero tensors
+        #     self._action_trans_one_hot_zeros = torch.zeros((self._batch_size,
+        #                                                     1,
+        #                                                     self._voxel_size,
+        #                                                     self._voxel_size,
+        #                                                     self._voxel_size),
+        #                                                     dtype=int,
+        #                                                     device=device)
+        #     self._action_rot_x_one_hot_zeros = torch.zeros((self._batch_size,
+        #                                                     self._num_rotation_classes),
+        #                                                     dtype=int,
+        #                                                     device=device)
+        #     self._action_rot_y_one_hot_zeros = torch.zeros((self._batch_size,
+        #                                                     self._num_rotation_classes),
+        #                                                     dtype=int,
+        #                                                     device=device)
+        #     self._action_rot_z_one_hot_zeros = torch.zeros((self._batch_size,
+        #                                                     self._num_rotation_classes),
+        #                                                     dtype=int,
+        #                                                     device=device)
+        #     self._action_grip_one_hot_zeros = torch.zeros((self._batch_size,
+        #                                                    2),
+        #                                                    dtype=int,
+        #                                                    device=device)
+        #     self._action_ignore_collisions_one_hot_zeros = torch.zeros((self._batch_size,
+        #                                                                 2),
+        #                                                                 dtype=int,
+        #                                                                 device=device)
 
-            # print total params
-            logging.info('# Q Params: %d' % sum(
-                p.numel() for name, p in self._q.named_parameters() \
-                if p.requires_grad and 'clip' not in name))
-        else:
+        #     # print total params
+        #     logging.info('# Q Params: %d' % sum(
+        #         p.numel() for name, p in self._q.named_parameters() \
+        #         if p.requires_grad and 'clip' not in name))
+        # else:
+        if True:
             for param in self._q.parameters():
                 param.requires_grad = False
 
@@ -297,6 +298,34 @@ class QAttentionPerActBCAgent(Agent):
             
             if self.calib_scaler.training:
                 # one-hot zero tensors
+                self._action_trans_one_hot_zeros = torch.zeros((self._batch_size,
+                                                                1,
+                                                                self._voxel_size,
+                                                                self._voxel_size,
+                                                                self._voxel_size),
+                                                                dtype=int,
+                                                                device=device)
+                self._action_rot_x_one_hot_zeros = torch.zeros((self._batch_size,
+                                                                self._num_rotation_classes),
+                                                                dtype=int,
+                                                                device=device)
+                self._action_rot_y_one_hot_zeros = torch.zeros((self._batch_size,
+                                                                self._num_rotation_classes),
+                                                                dtype=int,
+                                                                device=device)
+                self._action_rot_z_one_hot_zeros = torch.zeros((self._batch_size,
+                                                                self._num_rotation_classes),
+                                                                dtype=int,
+                                                                device=device)
+                self._action_grip_one_hot_zeros = torch.zeros((self._batch_size,
+                                                            2),
+                                                            dtype=int,
+                                                            device=device)
+                self._action_ignore_collisions_one_hot_zeros = torch.zeros((self._batch_size,
+                                                                            2),
+                                                                            dtype=int,
+                                                                            device=device)
+            else:
                 self._action_trans_one_hot_zeros = torch.zeros((self._batch_size,
                                                                 1,
                                                                 self._voxel_size,
@@ -482,7 +511,7 @@ class QAttentionPerActBCAgent(Agent):
         
         # if self.temperature_scaler.hard_temp:
         #     q_trans, q_rot_grip, q_collision = self.temperature_scaler.scale_logits([q_trans, q_rot_grip, q_collision])
-        print('q_rot_grip', q_rot_grip.shape)
+        # print('q_rot_grip', q_rot_grip.shape)
         # argmax to choose best action
         coords, \
         rot_and_grip_indicies, \
@@ -544,9 +573,9 @@ class QAttentionPerActBCAgent(Agent):
                           (q_collision_loss * self._collision_loss_weight)
         total_loss = combined_losses.mean()
         # print('gt_rot_grip {}, ')
-        print('coords {}, action_trans {}, trans_loss {}, total_loss {}'.format(coords, action_trans, q_trans_loss.mean(), total_loss))
-        print('rot_and_grip_indicies {}, action_rot_grip {}'.format(rot_and_grip_indicies, action_rot_grip))
-        print('ignore_collision_indicies {}, action_ignore_collisions {}'.format(ignore_collision_indicies, action_ignore_collisions))
+        # print('coords {}, action_trans {}, trans_loss {}, total_loss {}'.format(coords, action_trans, q_trans_loss.mean(), total_loss))
+        # print('rot_and_grip_indicies {}, action_rot_grip {}'.format(rot_and_grip_indicies, action_rot_grip))
+        # print('ignore_collision_indicies {}, action_ignore_collisions {}'.format(ignore_collision_indicies, action_ignore_collisions))
         
         # pdb.set_trace()
         # _q_trans = self._softmax_q_trans(q_trans)
@@ -636,7 +665,7 @@ class QAttentionPerActBCAgent(Agent):
             labels = [action_trans, action_rot_grip, action_ignore_collisions]
             
             scaler_loss = self.calib_scaler.compute_loss(logits, labels)
-            print(scaler_loss)
+            print('scaler_loss', scaler_loss)
             print(self.calib_scaler.compute_loss([q_trans, q_rot_grip, q_collision], labels))
             self.calib_scaler.optimizer.zero_grad()
             scaler_loss.backward()
@@ -650,6 +679,7 @@ class QAttentionPerActBCAgent(Agent):
             labels = [action_trans, action_rot_grip, action_ignore_collisions]
             scaler_loss = self.calib_scaler.compute_loss(logits, labels)
 
+        scaler = self.calib_scaler.get_val()
         self._summaries = {
             'losses/total_loss': total_loss,
             'losses/trans_loss': q_trans_loss.mean(),
@@ -681,7 +711,7 @@ class QAttentionPerActBCAgent(Agent):
         # print('trans_confidence {}, true_pred {}'.format(total_conf, true_pred))
 
         # print('Current temperature is {}'.format(self.temperature_scaler.temperature))
-        print('lowest conf {}'.format(self.lowest_conf))
+        # print('lowest conf {}'.format(self.lowest_conf))
         return {
             'total_loss': total_loss,
             'prev_layer_voxel_grid': prev_layer_voxel_grid,
@@ -691,7 +721,7 @@ class QAttentionPerActBCAgent(Agent):
             'total_conf': [total_conf],
             'true_pred': [true_pred],
             'scaler_loss': scaler_loss,
-            'scaler': -1
+            'scaler': scaler
         }
 
     def act(self, step: int, observation: dict,

@@ -55,12 +55,14 @@ temperature:
     # 3 for put_money_in_safe
     # 5.5 for push buttons
     # 1.5 for open_drawer
-    temp_log_root: '/home/bobwu/shared/temp_train_5tasks_0'
+    temp_log_root: "set PATH_TO_TEMP in argument"
 
 vector:
     vector_training: False
     vector_training_iter: 1000
-    vector_log_root: '/home/bobwu/shared/vector_train_5tasks_0'
+    vector_log_root: "set PATH_TO_TEMP in argument"
+    div_penalty: 0
+    learning_rate: 1e-2
 
 risk:
   alpha1: 1
@@ -72,7 +74,7 @@ risk:
   rot_conf_thresh: 0.014 #1/72
   search_size: 20
   search_step: 2
-  log_dir: /home/bobwu/shared/safe_action_new/ # /home/bobwu/shared/safe_action_conf100_set/
+  log_dir: "set $PATH_TO_EVAL_RESULTS+"/base_${t}/ in argument"
   enabled: False
 defaults:
     - method: C2FARM
