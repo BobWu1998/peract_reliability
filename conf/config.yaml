@@ -7,7 +7,7 @@ rlbench:
     task_name: "multi"
     tasks: [open_drawer] #,slide_block_to_color_target]
     demos: 10 #100
-    demo_path: $PERACT_ROOT/data/val  #/my/demo/path #/home/bobwu/UQ/peract_headless/peract_reliability/data/val #
+    demo_path: $PERACT_ROOT/data/val  
     episode_length: 25
     cameras: [front,left_shoulder,right_shoulder,wrist]
     camera_resolution: [128, 128]
